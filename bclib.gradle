@@ -91,6 +91,7 @@ processResources {
     inputs.property "mod_name", project.mod_name
     inputs.property "minecraft_version", project.minecraft_version
     inputs.property "forge_version", project.forge_version
+    inputs.property "wunderlib_version", project.wunderlib_version
 
     filesMatching("META-INF/mods.toml") {
         expand(
@@ -98,7 +99,8 @@ processResources {
                 "mod_name": project.mod_name,
                 "version": project.mod_version,
                 "minecraft_version": project.minecraft_version,
-                "forge_version": project.forge_version
+                "forge_version": project.forge_version,
+                "wunderlib_version": project.wunderlib_version
         )
     }
 }

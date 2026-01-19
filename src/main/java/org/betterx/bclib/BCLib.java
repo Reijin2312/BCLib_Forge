@@ -25,6 +25,7 @@ import org.betterx.bclib.networking.VersionChecker;
 import org.betterx.bclib.recipes.AlloyingRecipe;
 import org.betterx.bclib.recipes.AnvilRecipe;
 import org.betterx.bclib.recipes.CraftingRecipes;
+import org.betterx.bclib.recipes.BCLRecipeManager;
 import org.betterx.bclib.registry.BaseBlockEntities;
 import org.betterx.bclib.registry.BaseRegistry;
 import org.betterx.bclib.registry.BlockRegistry;
@@ -71,6 +72,7 @@ public class BCLib {
 
     public BCLib() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        modBus.addListener(BCLRecipeManager::register);
         modBus.addListener(this::onCommonSetup);
     }
 
