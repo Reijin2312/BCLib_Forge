@@ -37,6 +37,10 @@ public class CraftingRecipeBuilder extends AbstractBaseRecipeBuilder<CraftingRec
 
     protected final Map<String, CriterionTriggerInstance> unlocks = new HashMap<>();
     protected final Map<Character, Ingredient> materials = new HashMap<>();
+    protected final Map<Character, ItemLike[]> materialItems = new HashMap<>();
+    protected final Map<Character, TagKey<Item>> materialTags = new HashMap<>();
+    protected final Map<Character, ItemStack[]> materialStacks = new HashMap<>();
+    protected boolean materialsResolved;
 
     @Override
     public CraftingRecipeBuilder setOutputCount(int count) {
@@ -45,26 +49,66 @@ public class CraftingRecipeBuilder extends AbstractBaseRecipeBuilder<CraftingRec
 
     public CraftingRecipeBuilder addMaterial(char key, TagKey<Item> value) {
         unlockedBy(value);
-        materials.put(key, Ingredient.of(value));
+        materialTags.put(key, value);
+        materialItems.remove(key);
+        materialStacks.remove(key);
+        materialsResolved = false;
         return this;
     }
 
     public CraftingRecipeBuilder addMaterial(char key, ItemStack... values) {
         unlockedBy(values);
-        return addMaterial(key, Ingredient.of(Arrays.stream(values)));
+        materialStacks.put(key, values);
+        materialTags.remove(key);
+        materialItems.remove(key);
+        materialsResolved = false;
+        return this;
     }
 
     public CraftingRecipeBuilder addMaterial(char key, ItemLike... values) {
-        for (ItemLike item : values) {
-            this.alright &= BCLRecipeManager.exists(item);
-        }
+        if (!BCLib.isDatagen()) return this;
         unlockedBy(values);
-        return addMaterial(key, Ingredient.of(values));
+        materialItems.put(key, values);
+        materialTags.remove(key);
+        materialStacks.remove(key);
+        materialsResolved = false;
+        return this;
     }
 
     private CraftingRecipeBuilder addMaterial(char key, Ingredient value) {
         materials.put(key, value);
         return this;
+    }
+
+    private void resolveMaterials(boolean force) {
+        if (materialsResolved && !force) {
+            return;
+        }
+        materials.clear();
+        for (Map.Entry<Character, TagKey<Item>> entry : materialTags.entrySet()) {
+            addMaterial(entry.getKey(), Ingredient.of(entry.getValue()));
+        }
+        for (Map.Entry<Character, ItemStack[]> entry : materialStacks.entrySet()) {
+            ItemStack[] values = entry.getValue();
+            if (values != null) {
+                for (ItemStack stack : values) {
+                    if (stack != null) {
+                        this.alright &= BCLRecipeManager.exists(stack.getItem());
+                    }
+                }
+                addMaterial(entry.getKey(), Ingredient.of(Arrays.stream(values)));
+            }
+        }
+        for (Map.Entry<Character, ItemLike[]> entry : materialItems.entrySet()) {
+            ItemLike[] values = entry.getValue();
+            if (values != null) {
+                for (ItemLike item : values) {
+                    this.alright &= BCLRecipeManager.exists(item);
+                }
+                addMaterial(entry.getKey(), Ingredient.of(values));
+            }
+        }
+        materialsResolved = true;
     }
 
     public CraftingRecipeBuilder setShape(String... shape) {
@@ -127,6 +171,7 @@ public class CraftingRecipeBuilder extends AbstractBaseRecipeBuilder<CraftingRec
 
     @Override
     protected boolean checkRecipe() {
+        resolveMaterials(false);
         if (shape != null) return checkShaped();
         else return checkShapeless();
     }
@@ -146,6 +191,7 @@ public class CraftingRecipeBuilder extends AbstractBaseRecipeBuilder<CraftingRec
     }
 
     protected void buildShapeless(Consumer<FinishedRecipe> cc) {
+        resolveMaterials(true);
         final ShapelessRecipeBuilder builder = ShapelessRecipeBuilder.shapeless(
                 category, output.getItem(), output.getCount()
         );
@@ -202,6 +248,7 @@ public class CraftingRecipeBuilder extends AbstractBaseRecipeBuilder<CraftingRec
 
 
     protected void buildShaped(Consumer<FinishedRecipe> cc) {
+        resolveMaterials(true);
         final ShapedRecipeBuilder builder = ShapedRecipeBuilder.shaped(
                 category, output.getItem(), output.getCount()
         );

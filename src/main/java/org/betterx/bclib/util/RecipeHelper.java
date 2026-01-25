@@ -6,6 +6,7 @@ import net.minecraft.world.level.block.Block;
 
 public class RecipeHelper {
     public static boolean exists(ItemLike item) {
+        if (item == null) return false;
         if (item instanceof Block) {
             return BuiltInRegistries.BLOCK.getKey((Block) item) != BuiltInRegistries.BLOCK.getDefaultKey();
         } else {

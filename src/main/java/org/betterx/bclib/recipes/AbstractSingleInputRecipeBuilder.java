@@ -61,6 +61,7 @@ public abstract class AbstractSingleInputRecipeBuilder<T extends AbstractSingleI
     protected abstract RecipeSerializer<R> getSerializer();
 
     protected void serializeRecipeData(JsonObject root) {
+        resolvePrimaryInput(true);
         root.add("input", ItemUtil.toJsonIngredientWithNBT(primaryInput));
 
         if (group != null && !group.isEmpty()) {

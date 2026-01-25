@@ -54,6 +54,7 @@ public class StonecutterRecipeBuilder extends AbstractUnlockableRecipeBuilder<St
 
     @Override
     protected void buildRecipe(Consumer<FinishedRecipe> cc) {
+        resolvePrimaryInput(true);
         final SingleItemRecipeBuilder builder = SingleItemRecipeBuilder.stonecutting(
                 primaryInput, category, output.getItem(), output.getCount()
         );

@@ -17,6 +17,9 @@ import com.google.gson.JsonObject;
 
 public abstract class AbstractDoubleInputRecipeBuilder<T extends AbstractDoubleInputRecipeBuilder, R extends Recipe<? extends Container>> extends AbstractSingleInputRecipeBuilder<T, R> {
     protected Ingredient secondaryInput;
+    private ItemLike[] secondaryInputItems;
+    private TagKey<Item> secondaryInputTag;
+    private boolean secondaryInputResolved;
 
     protected AbstractDoubleInputRecipeBuilder(
             ResourceLocation id,
@@ -26,15 +29,20 @@ public abstract class AbstractDoubleInputRecipeBuilder<T extends AbstractDoubleI
     }
 
     public T setSecondaryInput(ItemLike... inputs) {
-        for (ItemLike item : inputs) {
-            this.alright &= RecipeHelper.exists(item);
-        }
-        this.secondaryInput = Ingredient.of(inputs);
+        if (!BCLib.isDatagen()) return (T) this;
+        this.secondaryInputItems = inputs;
+        this.secondaryInputTag = null;
+        this.secondaryInput = null;
+        this.secondaryInputResolved = false;
         return (T) this;
     }
 
     public T setSecondaryInput(TagKey<Item> input) {
-        this.secondaryInput = Ingredient.of(input);
+        if (!BCLib.isDatagen()) return (T) this;
+        this.secondaryInputTag = input;
+        this.secondaryInputItems = null;
+        this.secondaryInput = null;
+        this.secondaryInputResolved = false;
         return (T) this;
     }
 
@@ -51,8 +59,26 @@ public abstract class AbstractDoubleInputRecipeBuilder<T extends AbstractDoubleI
         return (T) this;
     }
 
+    protected void resolveSecondaryInput(boolean force) {
+        if (secondaryInputResolved && !force) {
+            return;
+        }
+        secondaryInputResolved = true;
+        if (secondaryInputTag != null) {
+            secondaryInput = Ingredient.of(secondaryInputTag);
+            return;
+        }
+        if (secondaryInputItems != null) {
+            for (ItemLike item : secondaryInputItems) {
+                this.alright &= RecipeHelper.exists(item);
+            }
+            secondaryInput = Ingredient.of(secondaryInputItems);
+        }
+    }
+
     @Override
     protected boolean checkRecipe() {
+        resolveSecondaryInput(false);
         if (secondaryInput == null) {
             BCLib.LOGGER.warning(
                     "Secondary input for Recipe can't be 'null', recipe {} will be ignored!",
@@ -65,6 +91,8 @@ public abstract class AbstractDoubleInputRecipeBuilder<T extends AbstractDoubleI
 
     @Override
     protected void serializeRecipeData(JsonObject root) {
+        resolvePrimaryInput(true);
+        resolveSecondaryInput(true);
         final JsonArray ingredients = new JsonArray();
         ingredients.add(primaryInput.toJson());
         ingredients.add(secondaryInput.toJson());

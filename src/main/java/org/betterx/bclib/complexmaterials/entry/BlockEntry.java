@@ -70,10 +70,12 @@ public class BlockEntry extends ComplexMaterialEntry {
             }
         }
         if (hasItem && itemTags != null) {
-            TagManager.ITEMS.add(block.asItem(), itemTags);
+            // Use id-based tags to avoid missing registry keys during early bootstrap.
+            TagManager.ITEMS.addUntyped(location, itemTags);
         }
         if (blockTags != null) {
-            TagManager.BLOCKS.add(block, blockTags);
+            // Use id-based tags to avoid missing registry keys during early bootstrap.
+            TagManager.BLOCKS.addUntyped(location, blockTags);
         }
 
         return block;

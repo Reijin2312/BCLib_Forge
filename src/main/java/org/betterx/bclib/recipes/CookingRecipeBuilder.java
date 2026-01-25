@@ -149,6 +149,7 @@ public class CookingRecipeBuilder extends AbstractUnlockableRecipeBuilder<Cookin
 
     @Override
     protected void buildRecipe(Consumer<FinishedRecipe> cc) {
+        resolvePrimaryInput(true);
         if (smelting) {
             buildRecipe(
                     cc,

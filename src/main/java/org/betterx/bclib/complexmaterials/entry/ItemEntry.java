@@ -30,7 +30,7 @@ public class ItemEntry extends ComplexMaterialEntry {
         Item item = initFunction.apply(material, itemSettings);
         registry.register(location, item);
         if (itemTags != null) {
-            TagManager.ITEMS.add(item, itemTags);
+            TagManager.ITEMS.addUntyped(location, itemTags);
         }
         return item;
     }

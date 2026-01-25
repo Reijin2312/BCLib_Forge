@@ -86,6 +86,7 @@ public class SmithingRecipeBuilder extends AbstractUnlockableRecipeBuilder<Smith
 
     @Override
     protected void buildRecipe(Consumer<FinishedRecipe> cc) {
+        resolvePrimaryInput(true);
         final SmithingTransformRecipeBuilder builder = SmithingTransformRecipeBuilder.smithing(
                 Ingredient.of(template),
                 primaryInput,
