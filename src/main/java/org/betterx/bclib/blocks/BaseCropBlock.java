@@ -1,5 +1,7 @@
 package org.betterx.bclib.blocks;
 
+import org.betterx.bclib.api.v3.datagen.LootDropProvider;
+import org.betterx.bclib.api.v3.datagen.LootTableUtil;
 import org.betterx.bclib.behaviours.BehaviourBuilders;
 import org.betterx.bclib.interfaces.SurvivesOnBlocks;
 import org.betterx.bclib.util.BlocksHelper;
@@ -8,6 +10,7 @@ import org.betterx.bclib.util.MHelper;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.advancements.critereon.StatePropertiesPredicate;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
@@ -24,7 +27,15 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.functions.ApplyBonusCount;
+import net.minecraft.world.level.storage.loot.functions.SetItemCountFunction;
+import net.minecraft.world.level.storage.loot.predicates.LootItemBlockStatePropertyCondition;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
+import net.minecraft.world.level.storage.loot.providers.number.UniformGenerator;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -33,7 +44,7 @@ import com.google.common.collect.Lists;
 import java.util.Collections;
 import java.util.List;
 
-public class BaseCropBlock extends BasePlantBlock implements SurvivesOnBlocks {
+public class BaseCropBlock extends BasePlantBlock implements SurvivesOnBlocks, LootDropProvider {
     public static final IntegerProperty AGE = IntegerProperty.create("age", 0, 3);
     private static final VoxelShape SHAPE = box(2, 0, 2, 14, 14, 14);
 
@@ -77,6 +88,32 @@ public class BaseCropBlock extends BasePlantBlock implements SurvivesOnBlocks {
         int countSeeds = MHelper.randRange(1, 3, MHelper.RANDOM_SOURCE);
         int countDrops = MHelper.randRange(1, 2, MHelper.RANDOM_SOURCE);
         return Lists.newArrayList(new ItemStack(this, countSeeds), new ItemStack(drop, countDrops));
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        var condition = LootItemBlockStatePropertyCondition
+                .hasBlockStateProperties(this)
+                .setProperties(StatePropertiesPredicate.Builder.properties().hasProperty(AGE, 3));
+
+        builder.withPool(LootPool
+                .lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .add(LootItem
+                        .lootTableItem(drop)
+                        .apply(SetItemCountFunction.setCount(UniformGenerator.between(1.0f, 2.0f)))
+                        .when(condition)
+                        .otherwise(LootItem.lootTableItem(this))
+                ));
+
+        builder.withPool(LootPool
+                .lootPool()
+                .when(condition)
+                .add(LootItem
+                        .lootTableItem(this)
+                        .apply(SetItemCountFunction.setCount(UniformGenerator.between(1.0f, 3.0f)))
+                        .apply(ApplyBonusCount.addBonusBinomialDistributionCount(Enchantments.BLOCK_FORTUNE, 0.571f, 3))
+                ));
     }
 
     @Override

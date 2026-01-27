@@ -20,4 +20,14 @@ public class MineableTags {
 
     static void prepareTags() {
     }
+
+    public static TagKey<Block> getRequiredToolTag(int miningLevel) {
+        return switch (miningLevel) {
+            case 1 -> BlockTags.NEEDS_STONE_TOOL;
+            case 2 -> BlockTags.NEEDS_IRON_TOOL;
+            case 3 -> BlockTags.NEEDS_DIAMOND_TOOL;
+            case 4 -> NEEDS_NETHERITE_TOOL;
+            default -> null;
+        };
+    }
 }

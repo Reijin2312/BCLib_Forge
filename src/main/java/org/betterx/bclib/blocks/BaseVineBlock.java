@@ -1,5 +1,7 @@
 package org.betterx.bclib.blocks;
 
+import org.betterx.bclib.api.v3.datagen.LootDropProvider;
+import org.betterx.bclib.api.v3.datagen.LootTableUtil;
 import org.betterx.bclib.behaviours.BehaviourBuilders;
 import org.betterx.bclib.behaviours.interfaces.BehaviourVine;
 import org.betterx.bclib.blocks.BlockProperties.TripleShape;
@@ -29,7 +31,11 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.providers.number.UniformGenerator;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -40,7 +46,7 @@ import java.util.List;
 import java.util.function.Function;
 
 @SuppressWarnings("deprecation")
-public class BaseVineBlock extends BaseBlockNotFull implements RenderLayerProvider, BonemealableBlock, BehaviourVine {
+public class BaseVineBlock extends BaseBlockNotFull implements RenderLayerProvider, BonemealableBlock, BehaviourVine, LootDropProvider {
     public static final EnumProperty<TripleShape> SHAPE = BlockProperties.TRIPLE_SHAPE;
     private static final VoxelShape VOXEL_SHAPE = box(2, 0, 2, 14, 16, 14);
 
@@ -129,6 +135,15 @@ public class BaseVineBlock extends BaseBlockNotFull implements RenderLayerProvid
         } else {
             return Lists.newArrayList();
         }
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        builder.withPool(LootPool
+                .lootPool()
+                .when(LootTableUtil.shearsOrHoeOrSilkTouch())
+                .setRolls(UniformGenerator.between(1.0f, 2.0f))
+                .add(LootItem.lootTableItem(this)));
     }
 
     @Override

@@ -2,6 +2,7 @@ package org.betterx.worlds.together.world.event;
 
 import org.betterx.bclib.BCLib;
 import org.betterx.bclib.config.Configs;
+import org.betterx.worlds.together.compat.BiolithCompat;
 import org.betterx.worlds.together.WorldsTogether;
 import org.betterx.worlds.together.levelgen.WorldGenUtil;
 import org.betterx.worlds.together.mixin.common.WorldPresetAccessor;
@@ -323,6 +324,7 @@ public class WorldBootstrap {
     public static LayeredRegistryAccess<RegistryLayer> enforceInLayeredRegistry(LayeredRegistryAccess<RegistryLayer> registries) {
         RegistryAccess access = registries.compositeAccess();
         Helpers.onRegistryReady(access);
+        BiolithCompat.ensureRegistryManager(registries);
         final Registry<LevelStem> dimensions = access.registryOrThrow(Registries.LEVEL_STEM);
         final Registry<LevelStem> changedDimensions = WorldGenUtil.repairBiomeSourceInAllDimensions(access, dimensions);
         if (dimensions != changedDimensions) {

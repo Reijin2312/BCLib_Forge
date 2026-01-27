@@ -1,5 +1,6 @@
 package org.betterx.bclib.blocks;
 
+import org.betterx.bclib.api.v3.datagen.LootDropProvider;
 import org.betterx.bclib.behaviours.BehaviourHelper;
 import org.betterx.bclib.behaviours.interfaces.BehaviourMetal;
 import org.betterx.bclib.behaviours.interfaces.BehaviourStone;
@@ -21,6 +22,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.StringRepresentable;
+import net.minecraft.advancements.critereon.StatePropertiesPredicate;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -31,6 +33,11 @@ import net.minecraft.world.level.block.state.properties.BlockSetType;
 import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.predicates.LootItemBlockStatePropertyCondition;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -41,7 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.jetbrains.annotations.Nullable;
 
-public abstract class BaseDoorBlock extends DoorBlock implements RenderLayerProvider, BlockModelProvider, TagProvider {
+public abstract class BaseDoorBlock extends DoorBlock implements RenderLayerProvider, BlockModelProvider, TagProvider, LootDropProvider {
     protected BaseDoorBlock(Block source, BlockSetType type) {
         this(Properties.copy(source).strength(3F, 3F).noOcclusion(), type);
     }
@@ -56,6 +63,19 @@ public abstract class BaseDoorBlock extends DoorBlock implements RenderLayerProv
         if (state.getValue(HALF) == DoubleBlockHalf.LOWER)
             return Collections.singletonList(new ItemStack(this.asItem()));
         else return Collections.emptyList();
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        builder.withPool(LootPool
+                .lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .add(LootItem
+                        .lootTableItem(this)
+                        .when(LootItemBlockStatePropertyCondition
+                                .hasBlockStateProperties(this)
+                                .setProperties(StatePropertiesPredicate.Builder.properties().hasProperty(HALF, DoubleBlockHalf.LOWER))
+                        )));
     }
 
     @Override

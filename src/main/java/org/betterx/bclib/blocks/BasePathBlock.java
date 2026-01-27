@@ -1,5 +1,7 @@
 package org.betterx.bclib.blocks;
 
+import org.betterx.bclib.api.v3.datagen.LootDropProvider;
+import org.betterx.bclib.api.v3.datagen.LootTableUtil;
 import org.betterx.bclib.behaviours.interfaces.BehaviourStone;
 import org.betterx.bclib.client.models.BasePatterns;
 import org.betterx.bclib.client.models.ModelsHelper;
@@ -18,7 +20,11 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -33,7 +39,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.jetbrains.annotations.Nullable;
 
-public abstract class BasePathBlock extends BaseBlockNotFull {
+public abstract class BasePathBlock extends BaseBlockNotFull implements LootDropProvider {
     private static final VoxelShape SHAPE = box(0, 0, 0, 16, 15, 16);
 
     private Block baseBlock;
@@ -54,7 +60,19 @@ public abstract class BasePathBlock extends BaseBlockNotFull {
         if (tool != null && EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SILK_TOUCH, tool) > 0) {
             return Collections.singletonList(new ItemStack(this));
         }
-        return Collections.singletonList(new ItemStack(Blocks.END_STONE));
+        return Collections.singletonList(new ItemStack(baseBlock));
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        builder.withPool(LootPool
+                .lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .add(LootItem
+                        .lootTableItem(this)
+                        .when(LootTableUtil.hasSilkTouch())
+                        .otherwise(LootItem.lootTableItem(baseBlock))
+                ));
     }
 
     @Override

@@ -10,6 +10,10 @@ import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
 
 import com.google.common.collect.Lists;
 
@@ -31,6 +35,13 @@ public abstract class WallMushroomBlock extends BaseWallPlantBlock {
     @Override
     public List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
         return Lists.newArrayList(new ItemStack(this));
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        builder.withPool(LootPool.lootPool()
+                               .setRolls(ConstantValue.exactly(1))
+                               .add(LootItem.lootTableItem(this)));
     }
 
     @Override

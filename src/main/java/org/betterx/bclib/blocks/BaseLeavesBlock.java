@@ -1,5 +1,7 @@
 package org.betterx.bclib.blocks;
 
+import org.betterx.bclib.api.v3.datagen.LootDropProvider;
+import org.betterx.bclib.api.v3.datagen.LootTableUtil;
 import org.betterx.bclib.behaviours.BehaviourBuilders;
 import org.betterx.bclib.behaviours.interfaces.BehaviourLeaves;
 import org.betterx.bclib.client.render.BCLRenderLayer;
@@ -20,7 +22,13 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.predicates.BonusLevelTableCondition;
+import net.minecraft.world.level.storage.loot.predicates.InvertedLootItemCondition;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
 
 import com.google.common.collect.Lists;
 
@@ -28,7 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class BaseLeavesBlock extends LeavesBlock implements BlockModelProvider, RenderLayerProvider, BehaviourLeaves {
+public class BaseLeavesBlock extends LeavesBlock implements BlockModelProvider, RenderLayerProvider, BehaviourLeaves, LootDropProvider {
     protected final Block sapling;
 
     public BaseLeavesBlock(
@@ -110,6 +118,29 @@ public class BaseLeavesBlock extends LeavesBlock implements BlockModelProvider, 
         return MHelper.RANDOM.nextInt(dropRate) == 0
                 ? Lists.newArrayList(new ItemStack(sapling))
                 : Lists.newArrayList();
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        builder.withPool(LootPool
+                .lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .add(LootItem
+                        .lootTableItem(this)
+                        .when(LootTableUtil.shearsOrSilkTouch())
+                ));
+
+        builder.withPool(LootPool
+                .lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .add(LootItem
+                        .lootTableItem(this.sapling)
+                        .when(InvertedLootItemCondition.invert(LootTableUtil.shearsOrSilkTouch()))
+                        .when(BonusLevelTableCondition.bonusLevelFlatChance(
+                                Enchantments.BLOCK_FORTUNE,
+                                new float[]{1.0f / 16.0f, 2.0f / 16.0f, 3.0f / 16.0f, 4.0f / 16.0f}
+                        ))
+                ));
     }
 
     @Override

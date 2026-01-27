@@ -1,5 +1,7 @@
 package org.betterx.bclib.blocks;
 
+import org.betterx.bclib.api.v3.datagen.LootDropProvider;
+import org.betterx.bclib.api.v3.datagen.LootTableUtil;
 import org.betterx.bclib.behaviours.BehaviourBuilders;
 import org.betterx.bclib.behaviours.interfaces.BehaviourPlant;
 import org.betterx.bclib.client.render.BCLRenderLayer;
@@ -23,7 +25,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -31,7 +37,7 @@ import com.google.common.collect.Lists;
 
 import java.util.List;
 
-public abstract class UpDownPlantBlock extends BaseBlockNotFull implements RenderLayerProvider, AddMineableShears, BehaviourPlant {
+public abstract class UpDownPlantBlock extends BaseBlockNotFull implements RenderLayerProvider, AddMineableShears, BehaviourPlant, LootDropProvider {
     private static final VoxelShape SHAPE = box(4, 0, 4, 12, 16, 12);
 
     public UpDownPlantBlock() {
@@ -93,6 +99,17 @@ public abstract class UpDownPlantBlock extends BaseBlockNotFull implements Rende
         } else {
             return Lists.newArrayList();
         }
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        builder.withPool(LootPool
+                .lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .add(LootItem
+                        .lootTableItem(this)
+                        .when(LootTableUtil.hasSilkTouch())
+                ));
     }
 
     @Override

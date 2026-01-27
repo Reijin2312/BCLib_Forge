@@ -1,5 +1,7 @@
 package org.betterx.bclib.blocks;
 
+import org.betterx.bclib.api.v3.datagen.LootDropProvider;
+import org.betterx.bclib.api.v3.datagen.LootTableUtil;
 import org.betterx.bclib.client.models.BasePatterns;
 import org.betterx.bclib.client.models.ModelsHelper;
 import org.betterx.bclib.client.models.PatternsHelper;
@@ -33,7 +35,11 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.lighting.LightEngine;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
 import net.minecraft.world.phys.BlockHitResult;
 
 import net.fabricmc.api.EnvType;
@@ -48,7 +54,7 @@ import java.util.Optional;
 import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("deprecation")
-public class BaseTerrainBlock extends BaseBlock {
+public class BaseTerrainBlock extends BaseBlock implements LootDropProvider {
     private final Block baseBlock;
     private Block pathBlock;
 
@@ -99,6 +105,18 @@ public class BaseTerrainBlock extends BaseBlock {
             return Collections.singletonList(new ItemStack(this));
         }
         return Collections.singletonList(new ItemStack(getBaseBlock()));
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        builder.withPool(LootPool
+                .lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .add(LootItem
+                        .lootTableItem(this)
+                        .when(LootTableUtil.hasSilkTouch())
+                        .otherwise(LootItem.lootTableItem(getBaseBlock()))
+                ));
     }
 
     @Override

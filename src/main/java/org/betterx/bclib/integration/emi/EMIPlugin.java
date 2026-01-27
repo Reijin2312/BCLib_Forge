@@ -14,6 +14,7 @@ import net.minecraft.world.level.block.Blocks;
 
 import dev.emi.emi.api.EmiPlugin;
 import dev.emi.emi.api.EmiRegistry;
+import dev.emi.emi.api.EmiEntrypoint;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
 import dev.emi.emi.api.render.EmiTexture;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+@EmiEntrypoint
 public class EMIPlugin implements EmiPlugin {
     private static boolean didInit = false;
     private static int maxAnvilLevel = 1;

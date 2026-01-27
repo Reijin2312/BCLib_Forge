@@ -195,7 +195,7 @@ public class CookingRecipeBuilder extends AbstractUnlockableRecipeBuilder<Cookin
         if (smoker) {
             buildRecipe(
                     cc,
-                    SimpleCookingRecipeBuilder.campfireCooking(
+                    SimpleCookingRecipeBuilder.smoking(
                             primaryInput,
                             category,
                             output.getItem(),

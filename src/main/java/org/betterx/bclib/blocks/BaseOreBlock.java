@@ -1,5 +1,8 @@
 package org.betterx.bclib.blocks;
 
+import org.betterx.bclib.BCLib;
+import org.betterx.bclib.api.v3.datagen.LootDropProvider;
+import org.betterx.bclib.api.v3.datagen.LootTableUtil;
 import org.betterx.bclib.behaviours.BehaviourBuilders;
 import org.betterx.bclib.behaviours.interfaces.BehaviourOre;
 import org.betterx.bclib.interfaces.BlockModelProvider;
@@ -10,12 +13,13 @@ import org.betterx.worlds.together.tag.v3.MineableTags;
 
 import net.minecraft.client.renderer.block.model.BlockModel;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.BlockTags;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.util.valueproviders.UniformInt;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.TieredItem;
 import net.minecraft.world.item.Tiers;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
@@ -27,20 +31,27 @@ import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.functions.ApplyBonusCount;
+import net.minecraft.world.level.storage.loot.functions.SetItemCountFunction;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
+import net.minecraft.world.level.storage.loot.providers.number.UniformGenerator;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class BaseOreBlock extends DropExperienceBlock implements BlockModelProvider, TagProvider, BehaviourOre {
+public class BaseOreBlock extends DropExperienceBlock implements BlockModelProvider, TagProvider, BehaviourOre, LootDropProvider {
     private final Supplier<Item> dropItem;
     private final int minCount;
     private final int maxCount;
     private final int miningLevel;
 
     public BaseOreBlock(Supplier<Item> drop, int minCount, int maxCount, int experience) {
-        this(drop, minCount, maxCount, experience, 0);
+        this(drop, minCount, maxCount, experience, Tiers.STONE.getLevel());
     }
 
     public BaseOreBlock(Supplier<Item> drop, int minCount, int maxCount, int experience, int miningLevel) {
@@ -75,23 +86,82 @@ public class BaseOreBlock extends DropExperienceBlock implements BlockModelProvi
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
+        final ItemStack tool = builder.getParameter(LootContextParams.TOOL);
+        final boolean hasSilkTouch = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SILK_TOUCH, tool) > 0;
         return LootUtil
                 .getDrops(this, state, builder)
+                .map(drops -> {
+                    if (!hasSilkTouch
+                            && drops.size() == 1
+                            && drops.get(0).getItem() == this.asItem()) {
+                        return BaseOreBlock.getDroppedItems(
+                                this,
+                                dropItem.get(),
+                                maxCount,
+                                minCount,
+                                builder
+                        );
+                    }
+                    return drops;
+                })
                 .orElseGet(
                         () -> BaseOreBlock.getDroppedItems(
                                 this,
                                 dropItem.get(),
                                 maxCount,
                                 minCount,
-                                miningLevel,
-                                state,
                                 builder
                         )
                 );
     }
 
+    @Override
+    public Item asItem() {
+        Item item = super.asItem();
+        if (item == Items.AIR) {
+            Item byId = BuiltInRegistries.ITEM.get(BuiltInRegistries.BLOCK.getKey(this));
+            if (byId != Items.AIR
+                    && BuiltInRegistries.ITEM.getKey(byId) != BuiltInRegistries.ITEM.getDefaultKey()) {
+                return byId;
+            }
+        }
+        return item;
+    }
+
+    public static List<ItemStack> getDroppedItems(
+            ItemLike block,
+            Item dropItem,
+            int maxCount,
+            int minCount,
+            LootParams.Builder builder
+    ) {
+        if (dropItem == null) {
+            return Collections.emptyList();
+        }
+        ItemStack tool = builder.getParameter(LootContextParams.TOOL);
+        if (EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SILK_TOUCH, tool) > 0) {
+            return Collections.singletonList(new ItemStack(block));
+        }
+        int count;
+        int enchantment = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BLOCK_FORTUNE, tool);
+        if (enchantment > 0) {
+            int min = Mth.clamp(minCount + enchantment, minCount, maxCount);
+            int max = maxCount + (enchantment / Enchantments.BLOCK_FORTUNE.getMaxLevel());
+            if (min == max) {
+                return Collections.singletonList(new ItemStack(dropItem, max));
+            }
+            count = MHelper.randRange(min, max, MHelper.RANDOM_SOURCE);
+        } else {
+            count = MHelper.randRange(minCount, maxCount, MHelper.RANDOM_SOURCE);
+        }
+        return Collections.singletonList(new ItemStack(dropItem, count));
+    }
+
+    /**
+     * @deprecated Use {@link #getDroppedItems(ItemLike, Item, int, int, Builder)} and block tags for the mining level instead.
+     */
+    @Deprecated(forRemoval = true)
     public static List<ItemStack> getDroppedItems(
             ItemLike block,
             Item dropItem,
@@ -102,31 +172,64 @@ public class BaseOreBlock extends DropExperienceBlock implements BlockModelProvi
             LootParams.Builder builder
     ) {
         ItemStack tool = builder.getParameter(LootContextParams.TOOL);
-        if (tool != null && tool.isCorrectToolForDrops(state) && dropItem != null) {
-            boolean canMine = miningLevel == 0;
-            if (tool.getItem() instanceof TieredItem tired) {
-                canMine = tired.getTier().getLevel() >= miningLevel;
+        if (!tool.isCorrectToolForDrops(state)) {
+            return Collections.emptyList();
+        }
+        boolean canMine = miningLevel == 0;
+        if (tool.getItem() instanceof TieredItem tired) {
+            canMine = tired.getTier().getLevel() >= miningLevel;
+        }
+        if (!canMine) {
+            return Collections.emptyList();
+        }
+        return getDroppedItems(block, dropItem, maxCount, minCount, builder);
+    }
+
+    @Override
+    public void getDroppedItemsBCL(LootTable.Builder builder) {
+        Item drop = dropItem == null ? null : dropItem.get();
+        Item selfItem = this.asItem();
+        boolean hasSelfItem = selfItem != Items.AIR
+                && BuiltInRegistries.ITEM.getKey(selfItem) != BuiltInRegistries.ITEM.getDefaultKey();
+        if (drop == null) {
+            if (!hasSelfItem) {
+                BCLib.LOGGER.warning("LootTable: Ore block item missing for " + BuiltInRegistries.BLOCK.getKey(this));
+                return;
             }
-            if (canMine) {
-                if (EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SILK_TOUCH, tool) > 0) {
-                    return Collections.singletonList(new ItemStack(block));
-                }
-                int count;
-                int enchantment = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BLOCK_FORTUNE, tool);
-                if (enchantment > 0) {
-                    int min = Mth.clamp(minCount + enchantment, minCount, maxCount);
-                    int max = maxCount + (enchantment / Enchantments.BLOCK_FORTUNE.getMaxLevel());
-                    if (min == max) {
-                        return Collections.singletonList(new ItemStack(dropItem, max));
-                    }
-                    count = MHelper.randRange(min, max, MHelper.RANDOM_SOURCE);
-                } else {
-                    count = MHelper.randRange(minCount, maxCount, MHelper.RANDOM_SOURCE);
-                }
-                return Collections.singletonList(new ItemStack(dropItem, count));
+            builder.withPool(LootPool
+                    .lootPool()
+                    .setRolls(ConstantValue.exactly(1.0f))
+                    .add(LootItem.lootTableItem(selfItem).when(LootTableUtil.hasSilkTouch())));
+            return;
+        }
+
+        // Resolve a valid item for silk touch (prefer the block item).
+        ItemLike silkDrop = null;
+        if (hasSelfItem) {
+            silkDrop = selfItem;
+        } else {
+            Item byId = BuiltInRegistries.ITEM.get(BuiltInRegistries.BLOCK.getKey(this));
+            if (byId != Items.AIR && BuiltInRegistries.ITEM.getKey(byId) != BuiltInRegistries.ITEM.getDefaultKey()) {
+                silkDrop = byId;
+            } else {
+                BCLib.LOGGER.warning("LootTable: Ore block item missing for " + BuiltInRegistries.BLOCK.getKey(this) + " (silk touch will not drop the block)");
             }
         }
-        return Collections.emptyList();
+        builder.withPool(LootPool
+                .lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .add(silkDrop == null
+                        ? LootItem.lootTableItem(drop)
+                                  .apply(SetItemCountFunction.setCount(UniformGenerator.between(minCount, maxCount)))
+                                  .apply(ApplyBonusCount.addOreBonusCount(Enchantments.BLOCK_FORTUNE))
+                        : LootItem
+                                .lootTableItem(silkDrop)
+                                .when(LootTableUtil.hasSilkTouch())
+                                .otherwise(LootItem
+                                        .lootTableItem(drop)
+                                        .apply(SetItemCountFunction.setCount(UniformGenerator.between(minCount, maxCount)))
+                                        .apply(ApplyBonusCount.addOreBonusCount(Enchantments.BLOCK_FORTUNE))
+                                )));
     }
 
     @Override
@@ -136,14 +239,9 @@ public class BaseOreBlock extends DropExperienceBlock implements BlockModelProvi
 
     @Override
     public void addTags(List<TagKey<Block>> blockTags, List<TagKey<Item>> itemTags) {
-        if (this.miningLevel == Tiers.STONE.getLevel()) {
-            blockTags.add(BlockTags.NEEDS_STONE_TOOL);
-        } else if (this.miningLevel == Tiers.IRON.getLevel()) {
-            blockTags.add(BlockTags.NEEDS_IRON_TOOL);
-        } else if (this.miningLevel == Tiers.DIAMOND.getLevel()) {
-            blockTags.add(BlockTags.NEEDS_DIAMOND_TOOL);
-        } else if (this.miningLevel == Tiers.NETHERITE.getLevel()) {
-            blockTags.add(MineableTags.NEEDS_NETHERITE_TOOL);
+        TagKey<Block> toolTag = MineableTags.getRequiredToolTag(this.miningLevel);
+        if (toolTag != null) {
+            blockTags.add(toolTag);
         }
     }
 }

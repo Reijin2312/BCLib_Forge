@@ -3,11 +3,15 @@ package org.betterx.bclib.blocks;
 import org.betterx.bclib.behaviours.interfaces.BehaviourMetal;
 import org.betterx.bclib.behaviours.interfaces.BehaviourStone;
 import org.betterx.bclib.behaviours.interfaces.BehaviourWood;
+import org.betterx.bclib.api.v3.datagen.DropSelfLootProvider;
 import org.betterx.bclib.interfaces.BlockModelProvider;
 
 import net.minecraft.client.renderer.block.model.BlockModel;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
@@ -26,7 +30,7 @@ import java.util.function.Consumer;
  * 	 <li>Automatically create an Item-Model from the Block-Model</li>
  * </ul>
  */
-public class BaseBlock extends Block implements BlockModelProvider {
+public class BaseBlock extends Block implements BlockModelProvider, DropSelfLootProvider<BaseBlock> {
     /**
      * Creates a new Block with the passed properties
      *
@@ -45,6 +49,19 @@ public class BaseBlock extends Block implements BlockModelProvider {
     @SuppressWarnings("deprecation")
     public List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
         return Collections.singletonList(new ItemStack(this));
+    }
+
+    @Override
+    public Item asItem() {
+        Item item = super.asItem();
+        if (item == Items.AIR) {
+            Item byId = BuiltInRegistries.ITEM.get(BuiltInRegistries.BLOCK.getKey(this));
+            if (byId != Items.AIR
+                    && BuiltInRegistries.ITEM.getKey(byId) != BuiltInRegistries.ITEM.getDefaultKey()) {
+                return byId;
+            }
+        }
+        return item;
     }
 
     /**
