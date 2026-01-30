@@ -10,8 +10,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.dimension.LevelStem;
 import net.minecraft.world.level.levelgen.SurfaceRules;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import org.jetbrains.annotations.ApiStatus;
 
@@ -44,7 +44,7 @@ public class SurfaceRuleRegistry {
         }
     }
 
-    private static Map<ResourceKey<AssignedSurfaceRule>, AssignedSurfaceRule> KNOWN = new HashMap<>();
+    private static final Map<ResourceKey<AssignedSurfaceRule>, AssignedSurfaceRule> KNOWN = new ConcurrentHashMap<>();
 
     public static ResourceKey<AssignedSurfaceRule> registerRule(
             ResourceLocation ruleID,

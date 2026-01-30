@@ -23,8 +23,8 @@ public interface RecipeMixin<C extends Container> {
 
         for (int i = 0; i < remaining.size(); ++i) {
             ItemStack stack = container.getItem(i);
-            if (stack.getItem().hasCraftingRemainingItem()) {
-                remaining.set(i, new ItemStack(stack.getItem().getCraftingRemainingItem()));
+            if (stack.hasCraftingRemainingItem()) {
+                remaining.set(i, stack.getCraftingRemainingItem());
             }
             if (stack.getItem() instanceof PotionItem && PotionUtils.getPotion(stack) == Potions.WATER) {
                 remaining.set(i, new ItemStack(Items.GLASS_BOTTLE));
