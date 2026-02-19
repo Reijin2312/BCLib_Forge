@@ -38,6 +38,7 @@ import net.minecraft.world.level.levelgen.synth.NormalNoise;
 
 import com.google.common.base.Suppliers;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +81,7 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
         }
 
         if (WorldsTogether.RUNS_TERRABLENDER) {
+            applyTerraBlenderRegionType(holder, null, biomeSource);
             BCLib.LOGGER.info("Make sure features are loaded from terrablender:" + biomeSource.getClass().getName());
 
             //terrablender is invalidating the feature initialization
@@ -136,6 +138,15 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
     // We make sure terrablender does not rewrite the feature-set for our ChunkGenerator by overwriting the
     // Mixin-Method with an empty implementation
     public void appendFeaturesPerStep() {
+    }
+
+    @Override
+    public void injectSurfaceRules(ResourceKey<LevelStem> dimensionKey) {
+        if (WorldsTogether.RUNS_TERRABLENDER) {
+            applyTerraBlenderRegionType(generatorSettings(), dimensionKey, this.getBiomeSource());
+        }
+
+        InjectableSurfaceRules.super.injectSurfaceRules(dimensionKey);
     }
 
     @Override
@@ -222,5 +233,47 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
             int maxY
     ) {
         return NoiseRouterData.slideNetherLike(densityGetter, minY, maxY);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void applyTerraBlenderRegionType(
+            Holder<NoiseGeneratorSettings> holder,
+            ResourceKey<LevelStem> dimensionKey,
+            BiomeSource biomeSource
+    ) {
+        if (!holder.isBound()) {
+            return;
+        }
+
+        String regionTypeName = null;
+        if (dimensionKey != null) {
+            if (dimensionKey.equals(LevelStem.NETHER)) {
+                regionTypeName = "NETHER";
+            } else if (dimensionKey.equals(LevelStem.OVERWORLD)) {
+                regionTypeName = "OVERWORLD";
+            }
+        }
+
+        if (regionTypeName == null && biomeSource instanceof BCLibNetherBiomeSource) {
+            regionTypeName = "NETHER";
+        }
+
+        if (regionTypeName == null) {
+            return;
+        }
+
+        try {
+            final Class<?> regionTypeClass = Class.forName("terrablender.api.RegionType");
+            final Enum regionType = Enum.valueOf((Class<Enum>) regionTypeClass.asSubclass(Enum.class), regionTypeName);
+            final Method setRegionType = holder.value().getClass().getMethod("setRegionType", regionTypeClass);
+            setRegionType.invoke(holder.value(), regionType);
+        } catch (ReflectiveOperationException e) {
+            BCLib.LOGGER.warning(
+                    "Unable to set TerraBlender region type {} for {}",
+                    regionTypeName,
+                    biomeSource.getClass().getName(),
+                    e
+            );
+        }
     }
 }
