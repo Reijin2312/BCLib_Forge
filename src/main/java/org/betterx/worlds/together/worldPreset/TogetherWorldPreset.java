@@ -1,6 +1,8 @@
 package org.betterx.worlds.together.worldPreset;
 
 import org.betterx.bclib.BCLib;
+import org.betterx.bclib.registry.PresetsRegistry;
+import org.betterx.worlds.together.chunkgenerator.EnforceableChunkGenerator;
 import org.betterx.worlds.together.WorldsTogether;
 import org.betterx.worlds.together.levelgen.WorldGenUtil;
 import org.betterx.worlds.together.mixin.common.WorldPresetAccessor;
@@ -22,6 +24,8 @@ import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.dimension.LevelStem;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.WorldDimensions;
 import net.minecraft.world.level.levelgen.presets.WorldPreset;
 
@@ -165,12 +169,62 @@ public class TogetherWorldPreset extends WorldPreset {
                     .parse(new Dynamic<>(registryOps, presetNBT))
                     .resultOrPartial(WorldsTogether.LOGGER::error);
 
-
-            return oLevelStem.orElse(DEFAULT_DIMENSIONS_WRAPPER).dimensions;
+            final Map<ResourceKey<LevelStem>, ChunkGenerator> loaded = oLevelStem
+                    .orElse(DEFAULT_DIMENSIONS_WRAPPER)
+                    .dimensions;
+            return ensureBetterXDimensions(loaded);
         } catch (Exception e) {
             BCLib.LOGGER.error("Failed to load Dimensions", e);
             return DEFAULT_DIMENSIONS_WRAPPER.dimensions;
         }
+    }
+
+    private static @NotNull Map<ResourceKey<LevelStem>, ChunkGenerator> ensureBetterXDimensions(
+            Map<ResourceKey<LevelStem>, ChunkGenerator> loaded
+    ) {
+        final ChunkGenerator nether = loaded.get(LevelStem.NETHER);
+        final ChunkGenerator end = loaded.get(LevelStem.END);
+        final boolean missingNether = !(nether instanceof EnforceableChunkGenerator);
+        final boolean missingEnd = !(end instanceof EnforceableChunkGenerator);
+
+        if (!missingNether && !missingEnd) {
+            return loaded;
+        }
+
+        final ResourceKey<WorldPreset> preset = detectBetterXPreset(loaded.get(LevelStem.OVERWORLD));
+        final Map<ResourceKey<LevelStem>, ChunkGenerator> betterX = TogetherWorldPreset.getDimensionsMap(preset);
+        if (betterX.isEmpty()) {
+            return loaded;
+        }
+
+        final Map<ResourceKey<LevelStem>, ChunkGenerator> merged = new HashMap<>(loaded);
+        if (missingNether && betterX.containsKey(LevelStem.NETHER)) {
+            merged.put(LevelStem.NETHER, betterX.get(LevelStem.NETHER));
+        }
+        if (missingEnd && betterX.containsKey(LevelStem.END)) {
+            merged.put(LevelStem.END, betterX.get(LevelStem.END));
+        }
+
+        WorldsTogether.LOGGER.info("Applied BetterX Nether/End generators to loaded world dimensions.");
+        return merged;
+    }
+
+    private static ResourceKey<WorldPreset> detectBetterXPreset(@Nullable ChunkGenerator overworld) {
+        if (overworld instanceof NoiseBasedChunkGenerator noiseGen) {
+            final ResourceKey<NoiseGeneratorSettings> settingsKey = noiseGen
+                    .generatorSettings()
+                    .unwrapKey()
+                    .orElse(null);
+
+            if (NoiseGeneratorSettings.AMPLIFIED.equals(settingsKey)) {
+                return PresetsRegistry.BCL_WORLD_AMPLIFIED;
+            }
+            if (NoiseGeneratorSettings.LARGE_BIOMES.equals(settingsKey)) {
+                return PresetsRegistry.BCL_WORLD_LARGE;
+            }
+        }
+
+        return PresetsRegistry.BCL_WORLD;
     }
 
     public static @Nullable Registry<LevelStem> getDimensions(ResourceKey<WorldPreset> key) {

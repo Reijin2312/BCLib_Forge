@@ -46,7 +46,9 @@ public abstract class CreateWorldScreen_Mixin {
     //Change the WorldPreset that is selected by default on the Create World Screen
     @ModifyArg(method = "openFresh", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screens/worldselection/CreateWorldScreen;<init>(Lnet/minecraft/client/Minecraft;Lnet/minecraft/client/gui/screens/Screen;Lnet/minecraft/client/gui/screens/worldselection/WorldCreationContext;Ljava/util/Optional;Ljava/util/OptionalLong;)V"))
     private static Optional<ResourceKey<WorldPreset>> wt_NewDefault(Optional<ResourceKey<WorldPreset>> preset) {
-        return Optional.of(WorldPresets.getDEFAULT());
+        // Respect an already selected preset (from vanilla or other mods/datapacks).
+        // Only provide BetterX as fallback when no preset was preselected.
+        return preset.isPresent() ? preset : Optional.of(WorldPresets.getDEFAULT());
     }
 
     //this is called when a new world is first created

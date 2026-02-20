@@ -1,5 +1,6 @@
 package org.betterx.worlds.together.mixin.common;
 
+import org.betterx.worlds.together.WorldsTogether;
 import org.betterx.worlds.together.worldPreset.WorldPresets;
 
 import net.minecraft.resources.ResourceKey;
@@ -20,6 +21,6 @@ public class WorldGenPropertiesMixin {
     //Make sure Servers use our Default World Preset
     @ModifyArg(method = "create", at = @At(value = "INVOKE", ordinal = 0, target = "Lnet/minecraft/core/Registry;getHolder(Lnet/minecraft/resources/ResourceKey;)Ljava/util/Optional;"))
     private ResourceKey<WorldPreset> wt_returnDefault(ResourceKey<WorldPreset> resourceKey) {
-        return WorldPresets.getDEFAULT();
+        return WorldsTogether.FORCE_SERVER_TO_BETTERX_PRESET ? WorldPresets.getDEFAULT() : resourceKey;
     }
 }
