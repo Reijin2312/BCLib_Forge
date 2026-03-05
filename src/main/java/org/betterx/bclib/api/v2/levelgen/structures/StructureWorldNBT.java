@@ -92,6 +92,9 @@ public class StructureWorldNBT extends StructureNBT {
             Rotation r,
             Mirror m
     ) {
+        if (getStructure(level) == null) {
+            return false;
+        }
         if (canGenerate(level, pos, r)) {
             return generate(level, pos, r, m);
         }
@@ -103,6 +106,9 @@ public class StructureWorldNBT extends StructureNBT {
     }
 
     protected boolean canGenerate(LevelAccessor level, BlockPos pos, Rotation rotation) {
+        if (getStructure() == null) {
+            return false;
+        }
         if (type == StructurePlacementType.FLOOR)
             return canGenerateFloor(level, pos, rotation);
         else if (type == StructurePlacementType.LAVA)
@@ -116,6 +122,9 @@ public class StructureWorldNBT extends StructureNBT {
     }
 
     private boolean containsBedrock(LevelAccessor level, BlockPos startPos) {
+        if (this.structure == null) {
+            return true;
+        }
         for (int i = 0; i < this.structure.getSize().getY(); i += 2) {
             if (level.getBlockState(startPos.above(i)).is(Blocks.BEDROCK)) {
                 return true;
@@ -161,6 +170,9 @@ public class StructureWorldNBT extends StructureNBT {
     }
 
     protected float getAirFraction(LevelAccessor world, BlockPos pos, Rotation rotation) {
+        if (structure == null) {
+            return 0;
+        }
         final MutableBlockPos POS = new MutableBlockPos();
         int airCount = 0;
 
@@ -189,6 +201,9 @@ public class StructureWorldNBT extends StructureNBT {
     }
 
     private float getLavaFractionFoundation(LevelAccessor world, BlockPos pos, Rotation rotation) {
+        if (structure == null) {
+            return 0;
+        }
         final MutableBlockPos POS = new MutableBlockPos();
         int lavaCount = 0;
 
@@ -216,6 +231,9 @@ public class StructureWorldNBT extends StructureNBT {
     }
 
     private float getAirFractionFoundation(LevelAccessor world, BlockPos pos, Rotation rotation) {
+        if (structure == null) {
+            return 0;
+        }
         final MutableBlockPos POS = new MutableBlockPos();
         int airCount = 0;
 
@@ -244,6 +262,9 @@ public class StructureWorldNBT extends StructureNBT {
     }
 
     private float getAirFractionBottom(LevelAccessor world, BlockPos pos, Rotation rotation) {
+        if (structure == null) {
+            return 0;
+        }
         final MutableBlockPos POS = new MutableBlockPos();
         int airCount = 0;
 

@@ -40,7 +40,7 @@ public class StructureNBT {
 
     protected StructureNBT(ResourceLocation location) {
         this.location = location;
-        this.structure = readStructureFromJar(location);
+        this.structure = null;
     }
 
     protected StructureNBT(ResourceLocation location, StructureTemplate structure) {
@@ -63,7 +63,8 @@ public class StructureNBT {
     }
 
     public boolean generateCentered(ServerLevelAccessor world, BlockPos pos, Rotation rotation, Mirror mirror) {
-        BlockPos newPos = getCenteredPos(pos, rotation, mirror);
+        StructureTemplate structure = getStructure(world);
+        BlockPos newPos = getCenteredPos(pos, rotation, mirror, structure);
         if (newPos == null) return false;
         StructurePlaceSettings data = new StructurePlaceSettings().setRotation(rotation).setMirror(mirror);
         structure.placeInWorld(
@@ -78,6 +79,8 @@ public class StructureNBT {
     }
 
     public boolean generateAt(ServerLevelAccessor world, BlockPos pos, Rotation rotation, Mirror mirror) {
+        StructureTemplate structure = getStructure(world);
+        if (structure == null) return false;
         StructurePlaceSettings data = new StructurePlaceSettings().setRotation(rotation).setMirror(mirror);
         structure.placeInWorld(
                 world,
@@ -92,6 +95,16 @@ public class StructureNBT {
 
     @Nullable
     private BlockPos getCenteredPos(BlockPos pos, Rotation rotation, Mirror mirror) {
+        return getCenteredPos(pos, rotation, mirror, getStructure());
+    }
+
+    @Nullable
+    private BlockPos getCenteredPos(
+            BlockPos pos,
+            Rotation rotation,
+            Mirror mirror,
+            @Nullable StructureTemplate structure
+    ) {
         if (structure == null) {
             BCLib.LOGGER.error("No structure: " + location.toString());
             return null;
@@ -109,7 +122,12 @@ public class StructureNBT {
     private static final Map<ResourceLocation, StructureTemplate> READER_CACHE = Maps.newHashMap();
 
     private static StructureTemplate readStructureFromJar(ResourceLocation resource) {
-        return READER_CACHE.computeIfAbsent(resource, r -> _readStructureFromJar(r));
+        if (READER_CACHE.containsKey(resource)) {
+            return READER_CACHE.get(resource);
+        }
+        StructureTemplate template = _readStructureFromJar(resource);
+        READER_CACHE.put(resource, template);
+        return template;
     }
 
     private static String getStructurePath(ResourceLocation resource) {
@@ -146,6 +164,29 @@ public class StructureNBT {
         }
 
         return null;
+    }
+
+    @Nullable
+    protected synchronized StructureTemplate getStructure() {
+        if (structure == null) {
+            structure = readStructureFromJar(location);
+        }
+        return structure;
+    }
+
+    @Nullable
+    protected synchronized StructureTemplate getStructure(ServerLevelAccessor world) {
+        if (structure == null) {
+            structure = world.getLevel().getStructureManager().getOrCreate(location);
+            if (structure == null) {
+                structure = readStructureFromJar(location);
+            }
+        }
+        return structure;
+    }
+
+    private static BoundingBox emptyBox(BlockPos pos) {
+        return new BoundingBox(pos.getX(), pos.getY(), pos.getZ(), pos.getX(), pos.getY(), pos.getZ());
     }
 
     /**
@@ -238,6 +279,10 @@ public class StructureNBT {
     }
 
     public BlockPos getSize(Rotation rotation) {
+        StructureTemplate structure = getStructure();
+        if (structure == null) {
+            return BlockPos.ZERO;
+        }
         if (rotation == Rotation.NONE || rotation == Rotation.CLOCKWISE_180)
             return new BlockPos(structure.getSize());
         else {
@@ -253,13 +298,22 @@ public class StructureNBT {
     }
 
     public BoundingBox getBoundingBox(BlockPos pos, Rotation rotation, Mirror mirror) {
+        StructureTemplate structure = getStructure();
+        if (structure == null) {
+            return emptyBox(pos);
+        }
         return structure.getBoundingBox(new StructurePlaceSettings().setRotation(rotation).setMirror(mirror), pos);
     }
 
     public BoundingBox getCenteredBoundingBox(BlockPos pos, Rotation rotation, Mirror mirror) {
+        StructureTemplate structure = getStructure();
+        BlockPos centeredPos = getCenteredPos(pos, rotation, mirror, structure);
+        if (structure == null || centeredPos == null) {
+            return emptyBox(pos);
+        }
         return structure.getBoundingBox(
                 new StructurePlaceSettings().setRotation(rotation).setMirror(mirror),
-                getCenteredPos(pos, rotation, mirror)
+                centeredPos
         );
     }
 }
