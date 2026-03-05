@@ -83,8 +83,7 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu implements AnvilSc
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/world/inventory/ContainerLevelAccess;execute(Ljava/util/function/BiConsumer;)V"
-            ),
-            index = 0
+            )
     )
     private BiConsumer<Level, BlockPos> bcl_wrapAnvilDamage(BiConsumer<Level, BlockPos> original) {
         return (level, blockPos) -> {
