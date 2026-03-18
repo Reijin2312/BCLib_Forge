@@ -1,5 +1,6 @@
 package org.betterx.bclib.client.models;
 
+import org.betterx.bclib.BCLib;
 import org.betterx.bclib.interfaces.BlockModelProvider;
 import org.betterx.bclib.interfaces.ItemModelProvider;
 import org.betterx.bclib.models.RecordItemModelProvider;
@@ -37,19 +38,28 @@ public class CustomModelBakery {
                                .filter(block -> block instanceof BlockModelProvider)
                                .forEach(block -> {
                                    ResourceLocation blockID = BuiltInRegistries.BLOCK.getKey(block);
-                                   ResourceLocation storageID = new ResourceLocation(
-                                           blockID.getNamespace(),
-                                           "blockstates/" + blockID.getPath() + ".json"
-                                   );
-                                   if (resourceManager.getResource(storageID).isEmpty()) {
-                                       addBlockModel(blockID, block);
-                                   }
-                                   storageID = new ResourceLocation(
-                                           blockID.getNamespace(),
-                                           "models/item/" + blockID.getPath() + ".json"
-                                   );
-                                   if (resourceManager.getResource(storageID).isEmpty()) {
-                                       addItemModel(blockID, (ItemModelProvider) block);
+                                   try {
+                                       ResourceLocation blockStateStorage = new ResourceLocation(
+                                               blockID.getNamespace(),
+                                               "blockstates/" + blockID.getPath() + ".json"
+                                       );
+                                       ResourceLocation blockModelStorage = new ResourceLocation(
+                                               blockID.getNamespace(),
+                                               "models/block/" + blockID.getPath() + ".json"
+                                       );
+                                       if (resourceManager.getResource(blockStateStorage).isEmpty()
+                                               || resourceManager.getResource(blockModelStorage).isEmpty()) {
+                                           addBlockModel(blockID, block);
+                                       }
+                                       ResourceLocation storageID = new ResourceLocation(
+                                               blockID.getNamespace(),
+                                               "models/item/" + blockID.getPath() + ".json"
+                                       );
+                                       if (resourceManager.getResource(storageID).isEmpty()) {
+                                           addItemModel(blockID, (ItemModelProvider) block);
+                                       }
+                                   } catch (RuntimeException ex) {
+                                       BCLib.LOGGER.error("Failed to build runtime block model for {}", blockID, ex);
                                    }
                                });
 
