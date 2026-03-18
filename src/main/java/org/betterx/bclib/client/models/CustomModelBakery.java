@@ -46,7 +46,12 @@ public class CustomModelBakery {
                                                blockID.getNamespace(),
                                                "blockstates/" + blockID.getPath() + ".json"
                                        );
-                                       if (resourceManager.getResource(blockStateStorage).isEmpty()) {
+                                       ResourceLocation blockModelStorage = new ResourceLocation(
+                                               blockID.getNamespace(),
+                                               "models/block/" + blockID.getPath() + ".json"
+                                       );
+                                       if (resourceManager.getResource(blockStateStorage).isEmpty()
+                                               || resourceManager.getResource(blockModelStorage).isEmpty()) {
                                            addBlockModel(blockID, block);
                                        }
                                        ResourceLocation storageID = new ResourceLocation(
@@ -89,7 +94,7 @@ public class CustomModelBakery {
                                   } catch (RuntimeException ex) {
                                       BCLib.LOGGER.error("Failed to build runtime item model for {}", registryID, ex);
                                   }
-                              });
+                                  });
     }
 
     private void addBlockModel(ResourceLocation blockID, Block block) {

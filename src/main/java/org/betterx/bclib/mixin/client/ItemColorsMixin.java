@@ -22,17 +22,9 @@ import java.util.List;
 @Mixin(ItemColors.class)
 public class ItemColorsMixin {
     private static boolean bclibLoggedAirItems;
-    private static int bclibRegisterCallIndex;
-    private static final int LOG_MAX_ITEMS = 32;
 
     @ModifyVariable(method = {"register", "m_92689_"}, at = @At("HEAD"), argsOnly = true, require = 0)
     private ItemLike[] bclib_filterAirItemLikes(ItemLike[] items) {
-        int callIndex = ++bclibRegisterCallIndex;
-        BCLib.LOGGER.info(
-                "ItemColors.register call {} items: {}",
-                callIndex,
-                describeItemLikes(items)
-        );
         int count = 0;
         List<String> offenders = null;
         for (ItemLike itemLike : items) {
@@ -95,27 +87,6 @@ public class ItemColorsMixin {
         if (key != null && key.equals(BuiltInRegistries.ITEM.getDefaultKey()) && item != Items.AIR) {
             desc.append(" itemKeyIsDefault=true");
         }
-        return desc.toString();
-    }
-
-    private static String describeItemLikes(ItemLike[] items) {
-        if (items == null) {
-            return "null";
-        }
-        StringBuilder desc = new StringBuilder("[");
-        int limit = Math.min(items.length, LOG_MAX_ITEMS);
-        for (int i = 0; i < limit; i++) {
-            if (i > 0) {
-                desc.append(", ");
-            }
-            ItemLike itemLike = items[i];
-            Item item = itemLike == null ? null : itemLike.asItem();
-            desc.append(i).append(":").append(describeItemLike(itemLike, item));
-        }
-        if (items.length > LOG_MAX_ITEMS) {
-            desc.append(", ... +").append(items.length - LOG_MAX_ITEMS).append(" more");
-        }
-        desc.append("]");
         return desc.toString();
     }
 }

@@ -69,7 +69,7 @@ public class BCLBiomeRegistry {
             ResourceLocation location,
             KeyDispatchDataCodec<E> codec
     ) {
-        BCLib.LOGGER.info("[datagen] registerBiomeCodec {} -> {}", location, codec);
+        BCLib.LOGGER.debug("[datagen] registerBiomeCodec {}", location);
         Registry.register(BIOME_CODECS, location, codec.codec());
         return codec.codec();
     }
