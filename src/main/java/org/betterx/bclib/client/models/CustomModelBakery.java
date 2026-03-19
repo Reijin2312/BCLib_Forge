@@ -18,8 +18,17 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class CustomModelBakery {
     private final Map<ResourceLocation, UnbakedModel> models = Maps.newConcurrentMap();
@@ -46,12 +55,8 @@ public class CustomModelBakery {
                                                blockID.getNamespace(),
                                                "blockstates/" + blockID.getPath() + ".json"
                                        );
-                                       ResourceLocation blockModelStorage = new ResourceLocation(
-                                               blockID.getNamespace(),
-                                               "models/block/" + blockID.getPath() + ".json"
-                                       );
                                        if (resourceManager.getResource(blockStateStorage).isEmpty()
-                                               || resourceManager.getResource(blockModelStorage).isEmpty()) {
+                                               || hasMissingReferencedModels(resourceManager, blockStateStorage, blockID)) {
                                            addBlockModel(blockID, block);
                                        }
                                        ResourceLocation storageID = new ResourceLocation(
@@ -153,5 +158,74 @@ public class CustomModelBakery {
         }
         models.put(modelLocation, model);
         models.put(new ResourceLocation(itemID.getNamespace(), "item/" + itemID.getPath()), model);
+    }
+
+    private boolean hasMissingReferencedModels(
+            ResourceManager resourceManager,
+            ResourceLocation blockStateStorage,
+            ResourceLocation blockID
+    ) {
+        try {
+            return resourceManager.getResource(blockStateStorage).map(resource -> {
+                try (InputStreamReader reader = new InputStreamReader(resource.open(), StandardCharsets.UTF_8)) {
+                    JsonElement root = JsonParser.parseReader(reader);
+                    Set<String> modelIds = new HashSet<>();
+                    collectModelIds(root, modelIds);
+
+                    for (String modelId : modelIds) {
+                        // Built-in model ids are synthetic and not backed by json files.
+                        if (modelId.startsWith("builtin/")) {
+                            continue;
+                        }
+                        ResourceLocation modelLocation = parseModelLocation(modelId, blockID.getNamespace());
+                        if (modelLocation == null) {
+                            continue;
+                        }
+                        if (resourceManager.getResource(modelLocation).isEmpty()) {
+                            return true;
+                        }
+                    }
+                    return false;
+                } catch (IOException ex) {
+                    BCLib.LOGGER.warning("Failed to read blockstate json {}: {}", blockStateStorage, ex.getMessage());
+                    return false;
+                }
+            }).orElse(false);
+        } catch (RuntimeException ex) {
+            BCLib.LOGGER.warning("Failed to inspect blockstate models for {}: {}", blockStateStorage, ex.getMessage());
+            return false;
+        }
+    }
+
+    private void collectModelIds(JsonElement element, Set<String> modelIds) {
+        if (element == null || element.isJsonNull()) {
+            return;
+        }
+        if (element.isJsonObject()) {
+            JsonObject object = element.getAsJsonObject();
+            if (object.has("model") && object.get("model").isJsonPrimitive()) {
+                modelIds.add(object.get("model").getAsString());
+            }
+            for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+                collectModelIds(entry.getValue(), modelIds);
+            }
+            return;
+        }
+        if (element.isJsonArray()) {
+            JsonArray array = element.getAsJsonArray();
+            for (JsonElement jsonElement : array) {
+                collectModelIds(jsonElement, modelIds);
+            }
+        }
+    }
+
+    private ResourceLocation parseModelLocation(String modelId, String defaultNamespace) {
+        ResourceLocation model = modelId.contains(":")
+                ? ResourceLocation.tryParse(modelId)
+                : ResourceLocation.tryBuild(defaultNamespace, modelId);
+        if (model == null) {
+            return null;
+        }
+        return new ResourceLocation(model.getNamespace(), "models/" + model.getPath() + ".json");
     }
 }
