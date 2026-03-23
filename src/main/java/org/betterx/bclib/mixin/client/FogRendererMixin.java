@@ -13,6 +13,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FogType;
 
+import net.minecraftforge.fml.ModList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -28,6 +29,11 @@ public class FogRendererMixin {
     @Shadow
     private static float fogBlue;
 
+    private static boolean hasDistantHorizons() {
+        ModList list = ModList.get();
+        return list != null && list.isLoaded("distanthorizons");
+    }
+
     @Inject(method = "setupColor", at = @At("RETURN"))
     private static void bclib_onRender(
             Camera camera,
@@ -37,6 +43,13 @@ public class FogRendererMixin {
             float f,
             CallbackInfo info
     ) {
+        if (hasDistantHorizons()) {
+            BackgroundInfo.fogColorRed = fogRed;
+            BackgroundInfo.fogColorGreen = fogGreen;
+            BackgroundInfo.fogColorBlue = fogBlue;
+            return;
+        }
+
         FogType fogType = camera.getFluidInCamera();
         if (fogType != FogType.WATER && world.dimension().equals(Level.END)) {
             Entity entity = camera.getEntity();
@@ -66,6 +79,10 @@ public class FogRendererMixin {
             float g,
             CallbackInfo ci
     ) {
+        if (hasDistantHorizons()) {
+            return;
+        }
+
         if (CustomFogRenderer.applyFogDensity(camera, viewDistance, thickFog)) {
             ci.cancel();
         }
