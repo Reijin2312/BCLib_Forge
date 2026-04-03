@@ -19,7 +19,6 @@
     "MinecraftMixin",
     "ModelBakeryMixin",
     "ModelManagerMixin",
-    "WorldCreationUIStateMixin",
     "boat.BoatRendererMixin"
   ],
   "injectors": {

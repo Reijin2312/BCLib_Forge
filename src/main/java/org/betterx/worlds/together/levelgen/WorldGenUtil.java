@@ -3,16 +3,13 @@ package org.betterx.worlds.together.levelgen;
 import org.betterx.worlds.together.WorldsTogether;
 import org.betterx.worlds.together.world.BiomeSourceWithNoiseRelatedSettings;
 import org.betterx.worlds.together.world.BiomeSourceWithSeed;
-import org.betterx.worlds.together.world.WorldConfig;
 import org.betterx.worlds.together.world.event.WorldBootstrap;
-import org.betterx.worlds.together.worldPreset.WorldPresets;
 
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
@@ -23,14 +20,10 @@ import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.WorldDimensions;
 import net.minecraft.world.level.levelgen.presets.WorldPreset;
+import net.minecraft.world.level.levelgen.presets.WorldPresets;
 import net.minecraft.world.level.levelgen.structure.StructureSet;
 
-import org.jetbrains.annotations.ApiStatus;
-
 public class WorldGenUtil {
-    public static final String TAG_PRESET = "preset";
-    public static final String TAG_GENERATOR = "generator";
-
     public static WorldDimensions createWorldFromPreset(
             ResourceKey<WorldPreset> preset,
             RegistryAccess registryAccess,
@@ -65,7 +58,7 @@ public class WorldGenUtil {
             boolean generateBonusChest
     ) {
         return createWorldFromPreset(
-                WorldPresets.getDEFAULT(),
+                WorldPresets.NORMAL,
                 registryAccess,
                 seed,
                 generateStructures,
@@ -79,17 +72,6 @@ public class WorldGenUtil {
 
     public static WorldDimensions createDefaultWorldFromPreset(RegistryAccess registryAccess) {
         return createDefaultWorldFromPreset(registryAccess, RandomSource.create().nextLong());
-    }
-
-    public static CompoundTag getPresetsNbt() {
-        return WorldConfig.getCompoundTag(WorldsTogether.MOD_ID, TAG_PRESET);
-    }
-
-    public static CompoundTag getGeneratorNbt() {
-        CompoundTag root = WorldConfig.getRootTag(WorldsTogether.MOD_ID);
-        if (root.contains(TAG_GENERATOR))
-            return WorldConfig.getCompoundTag(WorldsTogether.MOD_ID, TAG_GENERATOR);
-        return null;
     }
 
     public static class Context extends StemContext {
@@ -116,16 +98,6 @@ public class WorldGenUtil {
             this.structureSets = structureSets;
             this.generatorSettings = generatorSettings;
         }
-    }
-
-
-    @SuppressWarnings("unchecked")
-    @ApiStatus.Internal
-    public static Registry<LevelStem> repairBiomeSourceInAllDimensions(
-            RegistryAccess registryAccess,
-            Registry<LevelStem> dimensionRegistry
-    ) {
-        return new BiomeRepairHelper().repairBiomeSourceInAllDimensions(registryAccess, dimensionRegistry);
     }
 
     public static ResourceLocation getBiomeID(Biome biome) {

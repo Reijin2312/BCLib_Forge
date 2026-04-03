@@ -100,6 +100,7 @@ modrinth {
     changelog = changes
     dependencies {
         required.project "wunderlib"
+        required.project "terrablender"
         optional.project "emi"
     }
     debugMode = false
@@ -136,6 +137,7 @@ curseforge {
         addGameVersion 'Java 17'
         relations {
             requiredDependency 'wunderlib'
+            requiredDependency 'terrablender'
             optionalDependency 'emi'
         }
         mainArtifact(jar) {

@@ -2,14 +2,10 @@ package org.betterx.worlds.together.world.event;
 
 import org.betterx.bclib.BCLib;
 import org.betterx.bclib.config.Configs;
-import org.betterx.bclib.registry.PresetsRegistry;
 import org.betterx.worlds.together.compat.BiolithCompat;
 import org.betterx.worlds.together.WorldsTogether;
-import org.betterx.worlds.together.levelgen.WorldGenUtil;
 import org.betterx.worlds.together.surfaceRules.SurfaceRuleUtil;
 import org.betterx.worlds.together.world.WorldConfig;
-import org.betterx.worlds.together.worldPreset.TogetherWorldPreset;
-import org.betterx.worlds.together.worldPreset.WorldPresets;
 
 import net.minecraft.client.gui.screens.worldselection.WorldCreationContext;
 import net.minecraft.client.gui.screens.worldselection.WorldCreationUiState;
@@ -29,7 +25,6 @@ import net.minecraft.world.level.storage.LevelStorageSource;
 
 import java.io.File;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -75,10 +70,9 @@ public class WorldBootstrap {
         }
 
         private static Holder<WorldPreset> defaultServerPreset() {
-            return WorldPresets.get(
-                    LAST_REGISTRY_ACCESS,
-                    WorldPresets.getDEFAULT()
-            );
+            return LAST_REGISTRY_ACCESS
+                    .registryOrThrow(Registries.WORLD_PRESET)
+                    .getHolderOrThrow(net.minecraft.world.level.levelgen.presets.WorldPresets.NORMAL);
         }
 
         private static WorldDimensions defaultServerDimensions() {
@@ -87,73 +81,7 @@ public class WorldBootstrap {
         }
 
         private static WorldDimensions defaultServerDimensions(Holder<WorldPreset> defaultPreset) {
-            final WorldDimensions dimensions;
-            if (isBetterXPreset(defaultPreset) && defaultPreset.value() instanceof TogetherWorldPreset t) {
-                dimensions = t.getWorldDimensions();
-            } else {
-                dimensions = withBetterXDimensions(defaultPreset.value().createWorldDimensions(), defaultPreset);
-            }
-            return dimensions;
-        }
-
-        private static boolean isBetterXPreset(Holder<WorldPreset> preset) {
-            if (preset == null) {
-                return false;
-            }
-            final ResourceKey<WorldPreset> key = preset.unwrapKey().orElse(null);
-            if (key == null) {
-                return false;
-            }
-            return key.equals(PresetsRegistry.BCL_WORLD)
-                    || key.equals(PresetsRegistry.BCL_WORLD_LARGE)
-                    || key.equals(PresetsRegistry.BCL_WORLD_AMPLIFIED)
-                    || key.equals(PresetsRegistry.BCL_WORLD_17);
-        }
-
-        private static ResourceKey<WorldPreset> getBetterXPresetFor(Holder<WorldPreset> currentPreset) {
-            final ResourceKey<WorldPreset> key = currentPreset == null
-                    ? null
-                    : currentPreset.unwrapKey().orElse(null);
-
-            if (key != null) {
-                if (key.equals(net.minecraft.world.level.levelgen.presets.WorldPresets.AMPLIFIED)
-                        || key.equals(PresetsRegistry.BCL_WORLD_AMPLIFIED)) {
-                    return PresetsRegistry.BCL_WORLD_AMPLIFIED;
-                }
-                if (key.equals(net.minecraft.world.level.levelgen.presets.WorldPresets.LARGE_BIOMES)
-                        || key.equals(PresetsRegistry.BCL_WORLD_LARGE)) {
-                    return PresetsRegistry.BCL_WORLD_LARGE;
-                }
-            }
-
-            return PresetsRegistry.BCL_WORLD;
-        }
-
-        private static WorldDimensions withBetterXDimensions(
-                WorldDimensions baseDimensions,
-                Holder<WorldPreset> currentPreset
-        ) {
-            final ResourceKey<WorldPreset> betterXPreset = getBetterXPresetFor(currentPreset);
-            final Map<ResourceKey<LevelStem>, ChunkGenerator> betterX = TogetherWorldPreset.getDimensionsMap(
-                    betterXPreset
-            );
-
-            final Map<ResourceKey<LevelStem>, LevelStem> merged = new HashMap<>();
-            for (Map.Entry<ResourceKey<LevelStem>, LevelStem> entry : baseDimensions.dimensions().entrySet()) {
-                final ResourceKey<LevelStem> key = entry.getKey();
-                final LevelStem stem = entry.getValue();
-
-                ChunkGenerator generator = stem.generator();
-                if (key.equals(LevelStem.NETHER) && betterX.containsKey(LevelStem.NETHER)) {
-                    generator = betterX.get(LevelStem.NETHER);
-                } else if (key.equals(LevelStem.END) && betterX.containsKey(LevelStem.END)) {
-                    generator = betterX.get(LevelStem.END);
-                }
-
-                merged.put(key, new LevelStem(stem.type(), generator));
-            }
-
-            return TogetherWorldPreset.buildWorldDimensions(merged);
+            return defaultPreset.value().createWorldDimensions();
         }
 
         private static Holder<WorldPreset> presetFromDatapack(Holder<WorldPreset> currentPreset) {
@@ -182,16 +110,14 @@ public class WorldBootstrap {
                 final WorldDimensions dimensions = Helpers.defaultServerDimensions();
 
                 WorldBootstrap.setupWorld(
-                        levelStorageAccess, TogetherWorldPreset.getDimensionMap(dimensions),
+                        levelStorageAccess, toDimensionMap(dimensions),
                         true, true
                 );
 
-                Holder<WorldPreset> currentPreset = Helpers.defaultServerPreset();
-                writeWorldPresets(dimensions, currentPreset);
                 finishedWorldLoad();
             } else {
                 WorldBootstrap.setupWorld(
-                        levelStorageAccess, TogetherWorldPreset.loadWorldDimensions(),
+                        levelStorageAccess, Map.of(),
                         false, true
                 );
                 finishedWorldLoad();
@@ -254,18 +180,15 @@ public class WorldBootstrap {
                 boolean recreated
         ) {
             final WorldDimensions dimensions;
-            if (Helpers.isBetterXPreset(currentPreset) && currentPreset.value() instanceof TogetherWorldPreset) {
+            if (currentPreset != null) {
                 dimensions = currentPreset.value().createWorldDimensions();
-            } else if (currentPreset != null) {
-                dimensions = Helpers.withBetterXDimensions(currentPreset.value().createWorldDimensions(), currentPreset);
             } else if (recreated) {
                 dimensions = worldDims;
             } else {
                 dimensions = Helpers.defaultServerDimensions();
             }
 
-            setupWorld(levelStorageAccess, TogetherWorldPreset.getDimensionMap(dimensions), true, false);
-            writeWorldPresets(dimensions, currentPreset);
+            setupWorld(levelStorageAccess, toDimensionMap(dimensions), true, false);
             finishedWorldLoad();
 
             return currentPreset;
@@ -282,7 +205,7 @@ public class WorldBootstrap {
                 var levelStorageAccess = levelSource.createAccess(levelID);
                 WorldBootstrap.setupWorld(
                         levelStorageAccess,
-                        TogetherWorldPreset.loadWorldDimensions(),
+                        Map.of(),
                         false, false
                 );
                 levelStorageAccess.close();
@@ -344,13 +267,12 @@ public class WorldBootstrap {
         }
     }
 
-    private static void writeWorldPresets(WorldDimensions dimensions, Holder<WorldPreset> currentPreset) {
-        WorldEventsImpl.ADAPT_WORLD_PRESET.emit(currentPreset, dimensions);
-
-        // Persist the final world dimensions that were actually selected/adapted for this world.
-        // Do not read back from world preset internals here, because vanilla presets are wrapped
-        // as TogetherWorldPreset by codec mixins and would overwrite the adapted nether/end setup.
-        TogetherWorldPreset.writeWorldPresetSettings(dimensions);
+    private static Map<ResourceKey<LevelStem>, ChunkGenerator> toDimensionMap(WorldDimensions dimensions) {
+        final Map<ResourceKey<LevelStem>, ChunkGenerator> result = new HashMap<>();
+        for (var entry : dimensions.dimensions().entrySet()) {
+            result.put(entry.getKey(), entry.getValue().generator());
+        }
+        return result;
     }
 
     public static void finishedWorldLoad() {
@@ -386,19 +308,6 @@ public class WorldBootstrap {
         RegistryAccess access = registries.compositeAccess();
         Helpers.onRegistryReady(access);
         BiolithCompat.ensureRegistryManager(registries);
-        final Registry<LevelStem> dimensions = access.registryOrThrow(Registries.LEVEL_STEM);
-        final Registry<LevelStem> changedDimensions = WorldGenUtil.repairBiomeSourceInAllDimensions(access, dimensions);
-        if (dimensions != changedDimensions) {
-            if (Configs.MAIN_CONFIG.verboseLogging()) {
-                WorldsTogether.LOGGER.info("Loading originally configured Dimensions in World.");
-            }
-            registries = registries.replaceFrom(
-                    RegistryLayer.DIMENSIONS,
-                    new RegistryAccess.ImmutableRegistryAccess(List.of(changedDimensions)).freeze()
-            );
-            //this will generate a new access object we have to use from now on...
-            Helpers.onRegistryReady(registries.compositeAccess());
-        }
         return registries;
     }
 

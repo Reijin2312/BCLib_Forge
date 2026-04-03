@@ -32,7 +32,10 @@ public final class NetherBiomesHelper {
             return;
         }
         ADDED_BIOMES.add(biome);
-        ADDED_PARAMETERS.computeIfAbsent(biome, key -> new ArrayList<>()).add(parameters);
+        List<Climate.ParameterPoint> list = ADDED_PARAMETERS.computeIfAbsent(biome, key -> new ArrayList<>());
+        if (!list.contains(parameters)) {
+            list.add(parameters);
+        }
     }
 
     public static boolean canGenerateInNether(ResourceKey<Biome> biome) {
@@ -40,7 +43,15 @@ public final class NetherBiomesHelper {
     }
 
     @ApiStatus.Internal
-    public static Map<ResourceKey<Biome>, List<Climate.ParameterPoint>> getAdditionalParameters() {
-        return ADDED_PARAMETERS;
+    public static synchronized Map<ResourceKey<Biome>, List<Climate.ParameterPoint>> getAdditionalParameters() {
+        final Map<ResourceKey<Biome>, List<Climate.ParameterPoint>> copy = new HashMap<>();
+        ADDED_PARAMETERS.forEach((biome, points) -> copy.put(biome, List.copyOf(points)));
+        return Map.copyOf(copy);
+    }
+
+    @ApiStatus.Internal
+    public static synchronized void clearCustomBiomes() {
+        ADDED_BIOMES.clear();
+        ADDED_PARAMETERS.clear();
     }
 }

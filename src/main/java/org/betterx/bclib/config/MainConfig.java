@@ -10,16 +10,6 @@ public class MainConfig extends NamedPathConfig {
             "applyPatches",
             Configs.MAIN_PATCH_CATEGORY
     );
-
-    @ConfigUI(leftPadding = 8)
-    public static final ConfigToken<Boolean> REPAIR_BIOMES = DependendConfigToken.Boolean(
-            false,
-            "repairBiomesOnLoad",
-            Configs.MAIN_PATCH_CATEGORY,
-            (config) -> config.get(
-                    APPLY_PATCHES)
-    );
-
     @ConfigUI(topPadding = 8)
     public static final ConfigToken<Boolean> VERBOSE_LOGGING = ConfigToken.Boolean(
             true,
@@ -34,10 +24,6 @@ public class MainConfig extends NamedPathConfig {
 
     public boolean applyPatches() {
         return get(APPLY_PATCHES);
-    }
-
-    public boolean repairBiomes() {
-        return get(REPAIR_BIOMES);
     }
 
     public boolean verboseLogging() {

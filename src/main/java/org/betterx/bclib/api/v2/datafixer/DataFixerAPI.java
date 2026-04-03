@@ -2,6 +2,7 @@ package org.betterx.bclib.api.v2.datafixer;
 
 import org.betterx.bclib.BCLib;
 import org.betterx.bclib.client.gui.screens.AtomicProgressListener;
+import org.betterx.bclib.client.gui.screens.BackupFailedScreen;
 import org.betterx.bclib.client.gui.screens.ConfirmFixScreen;
 import org.betterx.bclib.client.gui.screens.LevelFixErrorScreen;
 import org.betterx.bclib.client.gui.screens.LevelFixErrorScreen.Listener;
@@ -30,6 +31,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -45,6 +47,8 @@ public class DataFixerAPI {
 
     static class State {
         public boolean didFail = false;
+        public boolean backupFailed = false;
+        public boolean didApplyFixes = false;
         protected ArrayList<String> errors = new ArrayList<>();
 
         public void addError(String s) {
@@ -114,7 +118,12 @@ public class DataFixerAPI {
             boolean showUI,
             Consumer<Boolean> onResume
     ) {
-        return wrapCall(levelSource, levelID, (levelStorageAccess) -> fixData(levelStorageAccess, showUI, onResume));
+        return wrapCall(levelSource, levelID, (levelStorageAccess) -> {
+            final File levelPath = levelStorageAccess.getLevelPath(LevelResource.ROOT).toFile();
+            // This access is scoped to wrapCall and may be closed before async UI flow finishes.
+            // Don't rely on it for backup creation.
+            return fixData(levelPath, levelStorageAccess.getLevelId(), showUI, onResume, null);
+        });
     }
 
     /**
@@ -133,7 +142,7 @@ public class DataFixerAPI {
             Consumer<Boolean> onResume
     ) {
         File levelPath = levelStorageAccess.getLevelPath(LevelResource.ROOT).toFile();
-        return fixData(levelPath, levelStorageAccess.getLevelId(), showUI, onResume);
+        return fixData(levelPath, levelStorageAccess.getLevelId(), showUI, onResume, levelStorageAccess);
     }
 
     /**
@@ -156,9 +165,16 @@ public class DataFixerAPI {
         return ps;
     }
 
-    private static boolean fixData(File dir, String levelID, boolean showUI, Consumer<Boolean> onResume) {
+    private static boolean fixData(
+            File dir,
+            String levelID,
+            boolean showUI,
+            Consumer<Boolean> onResume,
+            LevelStorageAccess currentAccess
+    ) {
         MigrationProfile profile = loadProfileIfNeeded(dir);
 
+        AtomicReference<BiConsumer<Boolean, Boolean>> runFixesRef = new AtomicReference<>();
         BiConsumer<Boolean, Boolean> runFixes = (createBackup, applyFixes) -> {
             final AtomicProgressListener progress;
             if (applyFixes) {
@@ -196,16 +212,30 @@ public class DataFixerAPI {
             }
 
             Supplier<State> runner = () -> {
+                final State state = new State();
+                boolean backupCreated = true;
                 if (createBackup) {
-                    progress.progressStage(Component.translatable("message.bclib.datafixer.progress.waitbackup"));
-                    EditWorldScreen.makeBackupAndShowToast(Minecraft.getInstance().getLevelSource(), levelID);
+                    if (progress != null) {
+                        progress.progressStage(Component.translatable("message.bclib.datafixer.progress.waitbackup"));
+                    }
+                    backupCreated = makeBackupAndShowToast(
+                            Minecraft.getInstance().getLevelSource(),
+                            levelID,
+                            currentAccess
+                    );
+                }
+
+                if (applyFixes && !backupCreated) {
+                    state.backupFailed = true;
+                    state.addError("Failed creating backup");
+                    return state;
                 }
 
                 if (applyFixes) {
                     return runDataFixes(dir, profile, progress);
                 }
 
-                return new State();
+                return state;
             };
 
             if (showUI) {
@@ -215,10 +245,18 @@ public class DataFixerAPI {
                     Minecraft.getInstance()
                              .execute(() -> {
                                  if (profile != null && showUI) {
+                                     if (state.backupFailed) {
+                                         showBackupFailedScreen(
+                                                 () -> onResume.accept(false),
+                                                 () -> runFixesRef.get().accept(false, applyFixes)
+                                         );
+                                         return;
+                                     }
+
                                      //something went wrong, show the user our error
                                      if (state.didFail || state.hasError()) {
                                          showLevelFixErrorScreen(state, (markFixed) -> {
-                                             if (markFixed) {
+                                             if (markFixed && state.didApplyFixes) {
                                                  profile.markApplied();
                                              }
                                              onResume.accept(applyFixes);
@@ -239,6 +277,7 @@ public class DataFixerAPI {
                 }
             }
         };
+        runFixesRef.set(runFixes);
 
         //we have some migrations
         if (profile != null) {
@@ -262,6 +301,11 @@ public class DataFixerAPI {
                          state.getErrorMessages(),
                          onContinue
                  ));
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    private static void showBackupFailedScreen(Runnable onBack, Runnable onContinue) {
+        Minecraft.getInstance().setScreen(new BackupFailedScreen(null, onBack, onContinue));
     }
 
     private static MigrationProfile loadProfileIfNeeded(File levelBaseDir) {
@@ -291,6 +335,53 @@ public class DataFixerAPI {
     @OnlyIn(Dist.CLIENT)
     static void showBackupWarning(String levelID, BiConsumer<Boolean, Boolean> whenFinished) {
         Minecraft.getInstance().setScreen(new ConfirmFixScreen(null, whenFinished::accept));
+    }
+
+    private static boolean makeBackupAndShowToast(
+            LevelStorageSource storageSource,
+            String levelID,
+            LevelStorageAccess currentAccess
+    ) {
+        if (currentAccess != null) {
+            try {
+                EditWorldScreen.makeBackupAndShowToast(currentAccess);
+                return true;
+            } catch (RuntimeException ex) {
+                LOGGER.warning(
+                        "Failed to create backup of level {} using existing access, retrying with reopened access",
+                        levelID,
+                        ex
+                );
+            }
+        }
+
+        boolean didOpen = false;
+        try (LevelStorageSource.LevelStorageAccess access = storageSource.createAccess(levelID)) {
+            didOpen = true;
+            EditWorldScreen.makeBackupAndShowToast(access);
+            return true;
+        } catch (IOException ex) {
+            if (!didOpen) {
+                SystemToast.onWorldAccessFailure(Minecraft.getInstance(), levelID);
+            }
+            LOGGER.warning("Failed to create backup of level {}", levelID, ex);
+            return false;
+        } catch (RuntimeException ex) {
+            LOGGER.warning("Failed to create backup of level {}", levelID, ex);
+            return false;
+        }
+    }
+
+    private static void progressStage(AtomicProgressListener progress, Component component) {
+        try {
+            if (progress != null) {
+                progress.progressStage(component);
+            } else {
+                BCLib.LOGGER.info("Patcher Stage... {}%", component.getString());
+            }
+        } catch (Exception ex) {
+            LOGGER.warning("Unable to update progress stage '{}'", component.getString(), ex);
+        }
     }
 
     private static State runDataFixes(File dir, MigrationProfile profile, AtomicProgressListener progress) {
@@ -333,6 +424,7 @@ public class DataFixerAPI {
             progress.progressStage(Component.translatable("message.bclib.datafixer.progress.saving"));
             profile.markApplied();
             WorldConfig.saveFile(BCLib.MOD_ID);
+            state.didApplyFixes = true;
         }
         progress.incAtomic(maxProgress);
 

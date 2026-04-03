@@ -5,11 +5,10 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "bclib.refmap.json",
   "mixins": [
-    "BiomeSourceMixin", "DedicatedServerPropertiesMixin", "DiggerItemAccessor", "MainDataMixin", "MainMixin",
+    "BiomeSourceMixin", "DiggerItemAccessor", "MainDataMixin", "MainMixin",
     "MinecraftServerMixin", "MinecraftServerMixinLate", "NoiseBasedChunkGeneratorMixin",
     "NoiseGeneratorSettingsMixin", "RegistryDataLoaderMixin", "RegistryOpsAccessor", "TagLoaderMixin",
-    "VanillaRegistriesMixin", "WorldGenPropertiesMixin", "WorldLoaderMixin", "WorldPresetAccessor",
-    "WorldPresetMixin", "WorldStem_Mixin"
+    "VanillaRegistriesMixin", "WorldLoaderMixin", "WorldStem_Mixin"
   ],
   "injectors": {
     "defaultRequire": 1

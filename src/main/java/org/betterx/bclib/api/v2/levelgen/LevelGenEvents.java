@@ -4,13 +4,14 @@ import org.betterx.bclib.BCLib;
 import org.betterx.bclib.api.v2.LifeCycleAPI;
 import org.betterx.bclib.api.v2.dataexchange.DataExchangeAPI;
 import org.betterx.bclib.api.v2.datafixer.DataFixerAPI;
+import org.betterx.bclib.api.v2.generator.NetherBiomesHelper;
+import org.betterx.bclib.api.v2.generator.TheEndBiomesHelper;
 import org.betterx.bclib.api.v2.levelgen.biomes.InternalBiomeAPI;
 import org.betterx.bclib.api.v2.poi.PoiManager;
 import org.betterx.worlds.together.tag.v3.TagManager;
 import org.betterx.worlds.together.world.WorldConfig;
 import org.betterx.worlds.together.world.event.WorldEvents;
 
-import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceKey;
@@ -18,8 +19,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagLoader;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.dimension.LevelStem;
-import net.minecraft.world.level.levelgen.WorldDimensions;
-import net.minecraft.world.level.levelgen.presets.WorldPreset;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.level.storage.LevelStorageSource;
 
@@ -30,6 +29,8 @@ import java.util.function.Consumer;
 
 public class LevelGenEvents {
     public static void setupWorld() {
+        NetherBiomesHelper.clearCustomBiomes();
+        TheEndBiomesHelper.resetToVanilla();
         InternalBiomeAPI.prepareNewLevel();
         DataExchangeAPI.prepareServerside();
     }
@@ -43,7 +44,6 @@ public class LevelGenEvents {
         WorldEvents.ON_FINALIZED_WORLD_LOAD.on(LevelGenEvents::finalizedWorldLoad);
 
         WorldEvents.PATCH_WORLD.on(LevelGenEvents::patchExistingWorld);
-        WorldEvents.ADAPT_WORLD_PRESET.on(LevelGenEvents::adaptWorldPreset);
 
         WorldEvents.BEFORE_ADDING_TAGS.on(LevelGenEvents::applyBiomeTags);
     }
@@ -68,13 +68,6 @@ public class LevelGenEvents {
         return DataFixerAPI.fixData(storageAccess, allDone != null && BCLib.isClient(), allDone);
     }
 
-    private static Holder<WorldPreset> adaptWorldPreset(
-            Holder<WorldPreset> currentPreset,
-            WorldDimensions worldDims
-    ) {
-        return currentPreset;
-    }
-
     private static void worldRegistryReady(RegistryAccess a) {
         InternalBiomeAPI.initRegistry(a);
     }
@@ -89,8 +82,6 @@ public class LevelGenEvents {
         if (isNewWorld) {
             WorldConfig.saveFile(BCLib.MOD_ID);
             DataFixerAPI.initializePatchData();
-        } else {
-            LevelGenUtil.migrateGeneratorSettings();
         }
     }
 

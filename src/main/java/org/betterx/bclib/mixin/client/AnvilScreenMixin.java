@@ -6,7 +6,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.client.gui.screens.inventory.ItemCombinerScreen;
 import net.minecraft.network.chat.Component;
@@ -25,7 +24,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.List;
 
 @Mixin(AnvilScreen.class)
-@Implements(@Interface(iface = ContainerEventHandler.class, prefix = "bcl$"))
 public class AnvilScreenMixin extends ItemCombinerScreen<AnvilMenu> {
 
     @Shadow
@@ -105,9 +103,8 @@ public class AnvilScreenMixin extends ItemCombinerScreen<AnvilMenu> {
     }
 
 
-    @Intrinsic(displace = true)
-    //@Override
-    public boolean bcl$mouseClicked(double mouseX, double mouseY, int button) {
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (minecraft != null) {
             for (AbstractWidget elem : be_buttons) {
                 if (elem.visible && elem.mouseClicked(mouseX, mouseY, button)) {

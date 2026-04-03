@@ -30,12 +30,6 @@ public class ClientConfig extends NamedPathConfig {
             "ui"
     );
 
-    @ConfigUI(hide = true)
-    public static final ConfigToken<Boolean> FORCE_BETTERX_PRESET = ConfigToken.Boolean(
-            true,
-            "forceBetterXPreset",
-            "ui"
-    );
     @ConfigUI(topPadding = 12)
     public static final ConfigToken<Boolean> SUPPRESS_EXPERIMENTAL_DIALOG = ConfigToken.Boolean(
             false,
@@ -194,14 +188,6 @@ public class ClientConfig extends NamedPathConfig {
 
     public void setDidShowWelcomeScreen() {
         set(ClientConfig.DID_SHOW_WELCOME, true);
-    }
-
-    public boolean forceBetterXPreset() {
-        return get(FORCE_BETTERX_PRESET);
-    }
-
-    public void setForceBetterXPreset(boolean v) {
-        set(FORCE_BETTERX_PRESET, v);
     }
 
     public boolean survivesOnHint() {

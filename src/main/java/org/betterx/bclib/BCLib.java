@@ -19,6 +19,7 @@ import org.betterx.bclib.blocks.signs.BaseSignBlock;
 import org.betterx.bclib.commands.CommandRegistry;
 import org.betterx.bclib.commands.arguments.BCLibArguments;
 import org.betterx.bclib.complexmaterials.BCLWoodTypeWrapper;
+import org.betterx.bclib.compat.terrablender.BCLibTerraBlender;
 import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.config.PathConfig;
 import org.betterx.bclib.networking.VersionChecker;
@@ -29,7 +30,6 @@ import org.betterx.bclib.recipes.BCLRecipeManager;
 import org.betterx.bclib.registry.BaseBlockEntities;
 import org.betterx.bclib.registry.BaseRegistry;
 import org.betterx.bclib.registry.BlockRegistry;
-import org.betterx.bclib.registry.PresetsRegistry;
 import org.betterx.datagen.bclib.tests.TestStructure;
 import org.betterx.worlds.together.WorldsTogether;
 import org.betterx.worlds.together.util.Logger;
@@ -82,8 +82,10 @@ public class BCLib {
     public void onInitialize() {
         RUNS_NULLSCAPE = isModLoaded("nullscape");
         WorldsTogether.onInitialize();
+        if (WorldsTogether.RUNS_TERRABLENDER) {
+            BCLibTerraBlender.initialize();
+        }
         BCLibArguments.register();
-        PresetsRegistry.register();
         LevelGenEvents.register();
         BlockPredicates.ensureStaticInitialization();
         BCLBiomeRegistry.register();
@@ -124,7 +126,6 @@ public class BCLib {
         PlacementModifiers.ensureStaticInitialization();
         Configs.save();
 
-        WorldsTogether.FORCE_SERVER_TO_BETTERX_PRESET = Configs.SERVER_CONFIG.forceBetterXPreset();
         VersionChecker.registerMod(MOD_ID);
 
         if (isDatagen()) {

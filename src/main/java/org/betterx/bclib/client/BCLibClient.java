@@ -10,7 +10,6 @@ import org.betterx.bclib.client.textures.SpriteLister;
 import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.interfaces.CustomColorProvider;
 import org.betterx.bclib.registry.BaseBlockEntityRenders;
-import org.betterx.bclib.registry.PresetsRegistryClient;
 import org.betterx.worlds.together.WorldsTogether;
 import org.betterx.worlds.together.client.WorldsTogetherClient;
 
@@ -46,7 +45,6 @@ public class BCLibClient {
             DataExchangeAPI.prepareClientside();
             PostInitAPI.postInit(true);
 
-            PresetsRegistryClient.onLoad();
             WorldsTogether.SURPRESS_EXPERIMENTAL_DIALOG = Configs.CLIENT_CONFIG.suppressExperimentalDialog();
 
             AtlasSetManager.addSource(AtlasSetManager.VANILLA_BLOCKS, new SpriteLister("entity/chest"));

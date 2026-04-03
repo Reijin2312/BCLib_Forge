@@ -39,6 +39,7 @@ public class BCLBiomeRegistry {
             BCL_BIOMES_REGISTRY,
             Lifecycle.stable()
     );
+    private static volatile int SYNC_EPOCH = 0;
 
     /**
      * Empty biome used as default value if requested biome doesn't exist or linked. Shouldn't be registered anywhere to prevent bugs.
@@ -248,13 +249,23 @@ public class BCLBiomeRegistry {
     }
 
     @ApiStatus.Internal
-    public static void syncFromRegistry(@Nullable RegistryAccess access) {
+    public static synchronized void syncFromRegistry(@Nullable RegistryAccess access) {
         Registry<BCLBiome> registry = getBclBiomesRegistry(access);
         if (registry == null) {
             BCLib.LOGGER.warning("No valid BCLBiome Registry available!");
             return;
         }
+
+        NetherBiomesHelper.clearCustomBiomes();
+        TheEndBiomesHelper.resetToVanilla();
+
         registry.entrySet()
                 .forEach(entry -> onBiomeLoad(entry.getKey().location(), entry.getValue()));
+
+        SYNC_EPOCH++;
+    }
+
+    public static int getSyncEpoch() {
+        return SYNC_EPOCH;
     }
 }

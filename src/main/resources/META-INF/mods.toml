@@ -34,6 +34,13 @@ ordering="NONE"
 side="BOTH"
 
 [[dependencies.${mod_id}]]
+modId="terrablender"
+mandatory=true
+versionRange="[${terrablender_version},)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
 modId="emi"
 mandatory=false
 versionRange="[1.0,)"

@@ -6,9 +6,7 @@ import de.ambertation.wunderlib.ui.layout.values.Size;
 import org.betterx.bclib.BCLib;
 import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.networking.VersionChecker;
-import org.betterx.bclib.registry.PresetsRegistry;
 import org.betterx.worlds.together.WorldsTogether;
-import org.betterx.worlds.together.worldPreset.WorldPresets;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -104,49 +102,14 @@ public class WelcomeScreen extends BCLibLayoutScreen {
               .setColor(ColorHelper.GRAY);
         dscBox.addSpacer(8);
 
-        // Use BetterX WorldType
-        innerContent.addSpacer(8);
-        Checkbox betterx = innerContent.addCheckbox(
-                                               fit(),
-                                               fit(),
-                                               translatable("title.config.bclib.client.ui.forceBetterXPreset"),
-                                               Configs.CLIENT_CONFIG.forceBetterXPreset()
-                                       )
-                                       .onChange((cb, state) -> {
-                                           Configs.CLIENT_CONFIG.setForceBetterXPreset(state);
-                                       });
-        innerContent.addSpacer(2);
-        dscBox = innerContent.indent(24);
-        dscBox.addMultilineText(
-                      fill(), fit(),
-                      translatable("warning.config.bclib.client.ui.forceBetterXPreset")
-                              .setStyle(Style.EMPTY
-                                      .withBold(true)
-                                      .withColor(ColorHelper.RED)
-                              )
-                              .append(translatable(
-                                      "description.config.bclib.client.ui.forceBetterXPreset").setStyle(
-                                      Style.EMPTY
-                                              .withBold(false)
-                                              .withColor(ColorHelper.GRAY))
-                              )
-              )
-              .setColor(ColorHelper.GRAY);
-        dscBox.addSpacer(8);
-
         innerContent.addSpacer(16);
         innerContent.addButton(fit(), fit(), CommonComponents.GUI_PROCEED).onPress((bt) -> {
             Configs.CLIENT_CONFIG.setDidShowWelcomeScreen();
             Configs.CLIENT_CONFIG.setCheckVersions(check.isChecked());
             Configs.CLIENT_CONFIG.setSuppressExperimentalDialog(experimental.isChecked());
-            Configs.CLIENT_CONFIG.setForceBetterXPreset(betterx.isChecked());
             Configs.CLIENT_CONFIG.saveChanges();
 
             WorldsTogether.SURPRESS_EXPERIMENTAL_DIALOG = Configs.CLIENT_CONFIG.suppressExperimentalDialog();
-            if (Configs.CLIENT_CONFIG.forceBetterXPreset())
-                WorldPresets.setDEFAULT(PresetsRegistry.BCL_WORLD);
-            else
-                WorldPresets.setDEFAULT(net.minecraft.world.level.levelgen.presets.WorldPresets.NORMAL);
             VersionChecker.startCheck(true);
             onClose();
         }).alignRight();

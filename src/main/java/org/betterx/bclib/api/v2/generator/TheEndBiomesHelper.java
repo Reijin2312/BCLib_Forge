@@ -18,27 +18,33 @@ import org.jetbrains.annotations.ApiStatus;
  */
 public class TheEndBiomesHelper {
     @ApiStatus.Internal
-    private static Map<BiomeAPI.BiomeType, Set<ResourceKey<Biome>>> END_BIOMES = new HashMap<>();
+    private static final Map<BiomeAPI.BiomeType, Set<ResourceKey<Biome>>> END_BIOMES = new HashMap<>();
 
     static {
+        resetToVanilla();
+    }
+
+    @ApiStatus.Internal
+    public static synchronized void add(BiomeAPI.BiomeType type, ResourceKey<Biome> biome) {
+        if (biome == null) return;
+        END_BIOMES.computeIfAbsent(type, t -> new HashSet<>()).add(biome);
+    }
+
+    private static synchronized boolean has(BiomeAPI.BiomeType type, ResourceKey<Biome> biome) {
+        if (biome == null) return false;
+        Set<ResourceKey<Biome>> set = END_BIOMES.get(type);
+        if (set == null) return false;
+        return set.contains(biome);
+    }
+
+    @ApiStatus.Internal
+    public static synchronized void resetToVanilla() {
+        END_BIOMES.clear();
         add(BiomeAPI.BiomeType.END_CENTER, Biomes.THE_END);
         add(BiomeAPI.BiomeType.END_LAND, Biomes.END_HIGHLANDS);
         add(BiomeAPI.BiomeType.END_LAND, Biomes.END_MIDLANDS);
         add(BiomeAPI.BiomeType.END_BARRENS, Biomes.END_BARRENS);
         add(BiomeAPI.BiomeType.END_VOID, Biomes.SMALL_END_ISLANDS);
-    }
-
-    @ApiStatus.Internal
-    public static void add(BiomeAPI.BiomeType type, ResourceKey<Biome> biome) {
-        if (biome == null) return;
-        END_BIOMES.computeIfAbsent(type, t -> new HashSet<>()).add(biome);
-    }
-
-    private static boolean has(BiomeAPI.BiomeType type, ResourceKey<Biome> biome) {
-        if (biome == null) return false;
-        Set<ResourceKey<Biome>> set = END_BIOMES.get(type);
-        if (set == null) return false;
-        return set.contains(biome);
     }
 
     /**
