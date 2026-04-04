@@ -11,30 +11,22 @@ import net.minecraft.client.main.GameConfig;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.lang.reflect.Field;
 
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {
-    @Shadow
-    @Nullable
-    public Screen screen;
-
     @Inject(method = "<init>*", at = @At("TAIL"))
     private void bclib_onMCInit(GameConfig args, CallbackInfo info) {
         final Minecraft minecraft = (Minecraft) (Object) this;
         final BlockColors blockColors = bcl$getFieldByType(minecraft, BlockColors.class);
         final ItemColors itemColors = bcl$getFieldByType(minecraft, ItemColors.class);
+        final Screen activeScreen = bcl$getFieldByType(minecraft, Screen.class);
         if (blockColors == null || itemColors == null) {
             return;
         }
@@ -49,7 +41,7 @@ public abstract class MinecraftMixin {
             }
         });
 
-        VersionCheckerClient.presentUpdateScreen(screen);
+        VersionCheckerClient.presentUpdateScreen(activeScreen);
     }
 
     @Unique

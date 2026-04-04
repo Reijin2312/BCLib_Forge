@@ -11,6 +11,7 @@ import net.minecraft.core.HolderGetter;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 
@@ -23,11 +24,12 @@ import java.util.Objects;
 
 public class BiomePicker {
     private final Map<BCLBiome, ActualBiome> all = new HashMap<>();
+    private final Map<ResourceLocation, Float> generationWeightMultipliers = new HashMap<>();
     public final HolderGetter<Biome> biomeRegistry;
     private final List<ActualBiome> biomes = Lists.newArrayList();
     private final List<String> allowedBiomes;
     public final ActualBiome fallbackBiome;
-    private WeighTree<ActualBiome> tree;
+    private volatile WeighTree<ActualBiome> tree;
 
     BiomePicker() {
         this(WorldBootstrap.getLastRegistryAccess() == null
@@ -68,8 +70,36 @@ public class BiomePicker {
         biomes.add(create(biome));
     }
 
+    public void setGenerationWeightMultiplier(BCLBiome biome, float multiplier) {
+        if (biome == null) {
+            return;
+        }
+        generationWeightMultipliers.put(biome.getID(), multiplier);
+    }
+
+    private float getGenerationWeightMultiplier(BCLBiome biome) {
+        if (biome == null) {
+            return 1.0F;
+        }
+        return generationWeightMultipliers.getOrDefault(biome.getID(), 1.0F);
+    }
+
     public ActualBiome getBiome(WorldgenRandom random) {
-        return biomes.isEmpty() ? fallbackBiome : tree.get(random);
+        if (biomes.isEmpty()) {
+            return fallbackBiome;
+        }
+
+        WeighTree<ActualBiome> localTree = tree;
+        if (localTree == null) {
+            synchronized (this) {
+                if (tree == null) {
+                    rebuild();
+                }
+                localTree = tree;
+            }
+        }
+
+        return localTree == null ? fallbackBiome : localTree.get(random);
     }
 
     public boolean isEmpty() {
@@ -80,8 +110,14 @@ public class BiomePicker {
         WeightedList<ActualBiome> list = new WeightedList<>();
 
         biomes.forEach(biome -> {
-            if (biome.isValid)
-                list.add(biome, biome.bclBiome.settings.getGenChance());
+            if (biome.isValid) {
+                final float weight = biome.bclBiome.settings.getGenChance() * getGenerationWeightMultiplier(
+                        biome.bclBiome
+                );
+                if (weight > 0.0F) {
+                    list.add(biome, weight);
+                }
+            }
         });
         //only a single biome, we need to add the edges as well
         if (list.size() == 1) {
@@ -124,8 +160,12 @@ public class BiomePicker {
             this.biome = (key != null && biomeRegistry != null) ? biomeRegistry.getOrThrow(key) : null;
             this.isValid = key != null && biome != null && biome.isBound() && biomeRegistry.get(key).isPresent();
             bclBiome.forEachSubBiome((b, w) -> {
-                if (isAllowed(b))
-                    subbiomes.add(create(b), w);
+                if (isAllowed(b)) {
+                    final float weight = w * getGenerationWeightMultiplier(b);
+                    if (weight > 0.0F) {
+                        subbiomes.add(create(b), weight);
+                    }
+                }
             });
 
             if (bclBiome.hasEdge() && isAllowed(bclBiome.getEdge())) {

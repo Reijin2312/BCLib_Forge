@@ -4,6 +4,7 @@ import org.betterx.bclib.api.v2.generator.NetherBiomesHelper;
 import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiome;
 import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiomeRegistry;
 import org.betterx.bclib.api.v2.levelgen.biomes.BiomeAPI;
+import org.betterx.bclib.compat.worldgen.ModBiomeWorldgenConfig;
 import org.betterx.worlds.together.world.event.WorldBootstrap;
 
 import com.mojang.datafixers.util.Pair;
@@ -20,22 +21,12 @@ import terrablender.api.RegionType;
 import java.util.Comparator;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.function.Consumer;
 
 public class BCLibNetherRegion extends Region {
-    private static final float SIZE_MULTIPLIER = 0.7F;
-    // Expand climate spans to make biome areas significantly larger.
-    private static final float SIZE_EXPANSION_PRIMARY = 0.18F * SIZE_MULTIPLIER;
-    private static final float SIZE_EXPANSION_SECONDARY = 0.28F * SIZE_MULTIPLIER;
-    // Deterministic per-variant shift to avoid identical overlays across all variants.
-    private static final float SECOND_LAYER_TEMP_SHIFT = 0.06F * SIZE_MULTIPLIER;
-    private static final float SECOND_LAYER_HUMIDITY_SHIFT = 0.06F * SIZE_MULTIPLIER;
-    private static final float SECOND_LAYER_WEIRDNESS_SHIFT = 0.04F * SIZE_MULTIPLIER;
-
     private final int variantIndex;
     private final int variantCount;
 
@@ -71,6 +62,10 @@ public class BCLibNetherRegion extends Region {
             return;
         }
 
+        final ModBiomeWorldgenConfig.ModSnapshot worldgenConfig = ModBiomeWorldgenConfig.loadBetterNether(
+                sortedBiomeKeys
+        );
+
         final Map<ResourceKey<Biome>, ResourceKey<Biome>> rootByBiome = new HashMap<>();
         for (ResourceKey<Biome> key : sortedBiomeKeys) {
             ResourceKey<Biome> root = bcl$resolveRootKey(key, bclRegistry);
@@ -95,23 +90,21 @@ public class BCLibNetherRegion extends Region {
         for (Map.Entry<ResourceKey<Biome>, List<ResourceKey<Biome>>> rootEntry : sortedRoots) {
             final ResourceKey<Biome> rootKey = rootEntry.getKey();
             final List<ResourceKey<Biome>> members = rootEntry.getValue();
-            final List<Climate.ParameterPoint> basePoints = bcl$getBasePoints(members, additional);
-            if (basePoints.isEmpty()) {
-                continue;
-            }
-
-            final List<WeightedBiome> variants = bcl$buildVariants(
-                    rootKey,
+            final Map<Climate.ParameterPoint, List<WeightedBiome>> variantsByPoint = bcl$buildPointVariants(
                     members,
                     registry,
-                    bclRegistry
+                    bclRegistry,
+                    additional,
+                    worldgenConfig
             );
-            if (variants.isEmpty()) {
+            if (variantsByPoint.isEmpty()) {
                 continue;
             }
 
-            for (Climate.ParameterPoint point : basePoints) {
-                if (point == null) {
+            for (Map.Entry<Climate.ParameterPoint, List<WeightedBiome>> pointEntry : variantsByPoint.entrySet()) {
+                final Climate.ParameterPoint point = pointEntry.getKey();
+                final List<WeightedBiome> variants = pointEntry.getValue();
+                if (point == null || variants == null || variants.isEmpty()) {
                     continue;
                 }
 
@@ -120,7 +113,7 @@ public class BCLibNetherRegion extends Region {
                     continue;
                 }
 
-                bcl$mapExpandedPoint(mapper, point, selectedBiome);
+                bcl$mapExpandedPoint(mapper, point, selectedBiome, worldgenConfig);
             }
         }
     }
@@ -128,79 +121,78 @@ public class BCLibNetherRegion extends Region {
     private void bcl$mapExpandedPoint(
             Consumer<Pair<Climate.ParameterPoint, ResourceKey<Biome>>> mapper,
             Climate.ParameterPoint point,
-            ResourceKey<Biome> biomeKey
+            ResourceKey<Biome> biomeKey,
+            ModBiomeWorldgenConfig.ModSnapshot worldgenConfig
     ) {
-        mapper.accept(Pair.of(point, biomeKey));
-        mapper.accept(Pair.of(bcl$expandPoint(point, SIZE_EXPANSION_PRIMARY), biomeKey));
-        mapper.accept(Pair.of(bcl$expandPoint(point, SIZE_EXPANSION_SECONDARY), biomeKey));
-
-        final int biomeHash = biomeKey.location().hashCode();
-        final float biomePhase = (biomeHash & 1023) / 1024.0F;
-        final float phase = ((float) this.variantIndex / (float) this.variantCount) + biomePhase;
-        final float angle = phase * ((float) Math.PI * 2.0F);
-        final float tempShift = Mth.sin(angle) * SECOND_LAYER_TEMP_SHIFT;
-        final float humidityShift = Mth.cos(angle) * SECOND_LAYER_HUMIDITY_SHIFT;
-        final float weirdnessShift = Mth.sin(angle + 1.5707964F) * SECOND_LAYER_WEIRDNESS_SHIFT;
-        mapper.accept(
-                Pair.of(
-                        bcl$shiftAndExpandPoint(
-                                point,
-                                tempShift,
-                                humidityShift,
-                                weirdnessShift,
-                                SIZE_EXPANSION_PRIMARY
-                        ),
-                        biomeKey
-                )
-        );
-    }
-
-    private List<WeightedBiome> bcl$buildVariants(
-            ResourceKey<Biome> rootKey,
-            List<ResourceKey<Biome>> members,
-            Registry<Biome> biomeRegistry,
-            Registry<BCLBiome> bclRegistry
-    ) {
-        final Map<ResourceKey<Biome>, Float> weights = new LinkedHashMap<>();
-        if (rootKey != null && biomeRegistry.containsKey(rootKey)) {
-            weights.put(rootKey, 1.0F);
+        final float sizeScale = bcl$getEffectiveSizeScale(biomeKey, worldgenConfig);
+        if (sizeScale <= 0.0F) {
+            return;
         }
 
+        if (Math.abs(sizeScale - 1.0F) < 0.0001F) {
+            mapper.accept(Pair.of(point, biomeKey));
+            return;
+        }
+
+        mapper.accept(Pair.of(bcl$scalePoint(point, sizeScale), biomeKey));
+    }
+
+    private Map<Climate.ParameterPoint, List<WeightedBiome>> bcl$buildPointVariants(
+            List<ResourceKey<Biome>> members,
+            Registry<Biome> biomeRegistry,
+            Registry<BCLBiome> bclRegistry,
+            Map<ResourceKey<Biome>, List<Climate.ParameterPoint>> additional,
+            ModBiomeWorldgenConfig.ModSnapshot worldgenConfig
+    ) {
+        final Map<Climate.ParameterPoint, Map<ResourceKey<Biome>, Float>> weightsByPoint = new LinkedHashMap<>();
+
         for (ResourceKey<Biome> member : members) {
-            if (member == null || member.equals(rootKey) || !biomeRegistry.containsKey(member)) {
+            if (member == null || !biomeRegistry.containsKey(member)) {
+                continue;
+            }
+
+            final List<Climate.ParameterPoint> points = additional.get(member);
+            if (points == null || points.isEmpty()) {
                 continue;
             }
 
             final BCLBiome biome = BCLBiomeRegistry.getBiomeOrNull(member, bclRegistry);
-            final float weight = biome == null ? 1.0F : biome.settings.getGenChance();
-            if (weight > 0.0F) {
-                weights.put(member, weight);
+            final float baseWeight = biome == null ? 1.0F : biome.settings.getGenChance();
+            final float weight = bcl$getEffectiveFrequencyWeight(member, baseWeight, worldgenConfig);
+            if (weight <= 0.0F) {
+                continue;
+            }
+
+            for (Climate.ParameterPoint point : points) {
+                if (point == null) {
+                    continue;
+                }
+                weightsByPoint
+                        .computeIfAbsent(point, ignored -> new LinkedHashMap<>())
+                        .put(member, weight);
             }
         }
 
-        if (weights.isEmpty()) {
-            return List.of();
+        if (weightsByPoint.isEmpty()) {
+            return Map.of();
         }
 
-        return weights.entrySet()
-                      .stream()
-                      .map(entry -> new WeightedBiome(entry.getKey(), entry.getValue()))
-                      .toList();
-    }
-
-    private static List<Climate.ParameterPoint> bcl$getBasePoints(
-            List<ResourceKey<Biome>> members,
-            Map<ResourceKey<Biome>, List<Climate.ParameterPoint>> additional
-    ) {
-        final LinkedHashSet<Climate.ParameterPoint> collected = new LinkedHashSet<>();
-        for (ResourceKey<Biome> member : members) {
-            final List<Climate.ParameterPoint> points = additional.get(member);
-            if (points != null && !points.isEmpty()) {
-                collected.addAll(points);
+        final Map<Climate.ParameterPoint, List<WeightedBiome>> result = new LinkedHashMap<>();
+        weightsByPoint.forEach((point, weights) -> {
+            if (weights == null || weights.isEmpty()) {
+                return;
             }
-        }
 
-        return collected.isEmpty() ? List.of() : List.copyOf(collected);
+            final List<WeightedBiome> variants = weights.entrySet()
+                                                        .stream()
+                                                        .map(entry -> new WeightedBiome(entry.getKey(), entry.getValue()))
+                                                        .toList();
+            if (!variants.isEmpty()) {
+                result.put(point, variants);
+            }
+        });
+
+        return result.isEmpty() ? Map.of() : result;
     }
 
     private ResourceKey<Biome> bcl$pickVariant(
@@ -363,48 +355,61 @@ public class BCLibNetherRegion extends Region {
         }
     }
 
-    private static Climate.ParameterPoint bcl$expandPoint(Climate.ParameterPoint point, float expansion) {
+    private static Climate.ParameterPoint bcl$scalePoint(Climate.ParameterPoint point, float scale) {
         return Climate.parameters(
-                bcl$expand(point.temperature(), expansion),
-                bcl$expand(point.humidity(), expansion),
-                bcl$expand(point.continentalness(), expansion),
-                bcl$expand(point.erosion(), expansion),
-                bcl$expand(point.depth(), expansion),
-                bcl$expand(point.weirdness(), expansion),
+                bcl$scaleParameter(point.temperature(), scale),
+                bcl$scaleParameter(point.humidity(), scale),
+                bcl$scaleParameter(point.continentalness(), scale),
+                bcl$scaleParameter(point.erosion(), scale),
+                bcl$scaleParameter(point.depth(), scale),
+                bcl$scaleParameter(point.weirdness(), scale),
                 Climate.unquantizeCoord(point.offset())
         );
     }
 
-    private static Climate.ParameterPoint bcl$shiftAndExpandPoint(
-            Climate.ParameterPoint point,
-            float temperatureShift,
-            float humidityShift,
-            float weirdnessShift,
-            float expansion
-    ) {
-        return Climate.parameters(
-                bcl$shiftAndExpand(point.temperature(), temperatureShift, expansion),
-                bcl$shiftAndExpand(point.humidity(), humidityShift, expansion),
-                bcl$expand(point.continentalness(), expansion),
-                bcl$expand(point.erosion(), expansion),
-                bcl$expand(point.depth(), expansion),
-                bcl$shiftAndExpand(point.weirdness(), weirdnessShift, expansion),
-                Climate.unquantizeCoord(point.offset())
-        );
-    }
-
-    private static Climate.Parameter bcl$shiftAndExpand(Climate.Parameter parameter, float shift, float expansion) {
+    private static Climate.Parameter bcl$scaleParameter(Climate.Parameter parameter, float scale) {
         final float min = Climate.unquantizeCoord(parameter.min());
         final float max = Climate.unquantizeCoord(parameter.max());
-        final float center = (min + max) * 0.5F + shift;
-        final float halfSize = (max - min) * 0.5F + expansion;
+        final float center = (min + max) * 0.5F;
+        final float halfSize = (max - min) * 0.5F * scale;
         final float outMin = Mth.clamp(center - halfSize, -2.0F, 2.0F);
         final float outMax = Mth.clamp(center + halfSize, -2.0F, 2.0F);
         return Climate.Parameter.span(outMin, outMax);
     }
 
-    private static Climate.Parameter bcl$expand(Climate.Parameter parameter, float expansion) {
-        return bcl$shiftAndExpand(parameter, 0.0F, expansion);
+    private static float bcl$getEffectiveSizeScale(
+            ResourceKey<Biome> biomeKey,
+            ModBiomeWorldgenConfig.ModSnapshot worldgenConfig
+    ) {
+        final ModBiomeWorldgenConfig.BiomeWorldgenSettings settings = worldgenConfig.settingsFor(biomeKey);
+        if (!settings.enabled()) {
+            return 0.0F;
+        }
+
+        return Mth.clamp(
+                settings.sizeMultiplier() * worldgenConfig.globalSizeFor(biomeKey),
+                0.05F,
+                16.0F
+        );
+    }
+
+    private static float bcl$getEffectiveFrequencyWeight(
+            ResourceKey<Biome> biomeKey,
+            float baseWeight,
+            ModBiomeWorldgenConfig.ModSnapshot worldgenConfig
+    ) {
+        if (baseWeight <= 0.0F) {
+            return 0.0F;
+        }
+
+        final ModBiomeWorldgenConfig.BiomeWorldgenSettings settings = worldgenConfig.settingsFor(biomeKey);
+        if (!settings.enabled()) {
+            return 0.0F;
+        }
+
+        return baseWeight
+                * Mth.clamp(settings.frequencyMultiplier(), 0.0F, 32.0F)
+                * Mth.clamp(worldgenConfig.globalFrequencyFor(biomeKey), 0.0F, 32.0F);
     }
 
     private record WeightedBiome(ResourceKey<Biome> biomeKey, float weight) {}

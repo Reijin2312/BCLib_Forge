@@ -9,16 +9,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Slice;
 
 @Mixin(value = LivingEntity.class, priority = 199)
 public abstract class LivingEntityMixin {
-    @Shadow
-    public abstract ItemStack getItemBySlot(EquipmentSlot equipmentSlot);
-
     @ModifyArg(
             method = "travel",
             slice = @Slice(
@@ -28,9 +24,10 @@ public abstract class LivingEntityMixin {
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setDeltaMovement(Lnet/minecraft/world/phys/Vec3;)V")
     )
     public Vec3 be_travel(Vec3 moveDelta) {
+        final LivingEntity self = (LivingEntity) (Object) this;
         ItemStack itemStack;
-        if (BCLElytraUtils.slotProvider == null) itemStack = getItemBySlot(EquipmentSlot.CHEST);
-        else itemStack = BCLElytraUtils.slotProvider.getElytra((LivingEntity) (Object) this, this::getItemBySlot);
+        if (BCLElytraUtils.slotProvider == null) itemStack = self.getItemBySlot(EquipmentSlot.CHEST);
+        else itemStack = BCLElytraUtils.slotProvider.getElytra(self, self::getItemBySlot);
         if (itemStack != null && itemStack.getItem() instanceof BCLElytraItem elytra) {
             double movementFactor = elytra.getMovementFactor();
             moveDelta = moveDelta.multiply(movementFactor, 1.0D, movementFactor);

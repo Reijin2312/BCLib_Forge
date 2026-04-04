@@ -7,6 +7,7 @@ import org.betterx.bclib.api.v2.generator.map.hex.HexBiomeMap;
 import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiome;
 import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiomeRegistry;
 import org.betterx.bclib.api.v2.levelgen.biomes.BiomeAPI;
+import org.betterx.bclib.compat.worldgen.ModBiomeWorldgenConfig;
 import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.interfaces.BiomeMap;
 import org.betterx.worlds.together.world.BiomeSourceWithSeed;
@@ -19,7 +20,9 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.Climate;
 import net.minecraft.world.level.biome.TheEndBiomeSource;
 import net.minecraft.world.level.dimension.LevelStem;
@@ -43,10 +46,10 @@ import java.util.stream.Stream;
 @Mixin(TheEndBiomeSource.class)
 public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
     private static final int INNER_VOID_RADIUS_SQUARED = BCLEndBiomeSourceConfig.MINECRAFT_20.innerVoidRadiusSquared;
-    private static final int CENTER_BIOME_SIZE = BCLEndBiomeSourceConfig.MINECRAFT_20.centerBiomesSize;
-    private static final int VOID_BIOME_SIZE = BCLEndBiomeSourceConfig.MINECRAFT_20.voidBiomesSize;
-    private static final int LAND_BIOME_SIZE = BCLEndBiomeSourceConfig.MINECRAFT_20.landBiomesSize;
-    private static final int BARRENS_BIOME_SIZE = BCLEndBiomeSourceConfig.MINECRAFT_20.barrensBiomesSize;
+    private static final int BASE_CENTER_BIOME_SIZE = BCLEndBiomeSourceConfig.MINECRAFT_20.centerBiomesSize;
+    private static final int BASE_VOID_BIOME_SIZE = BCLEndBiomeSourceConfig.MINECRAFT_20.voidBiomesSize;
+    private static final int BASE_LAND_BIOME_SIZE = BCLEndBiomeSourceConfig.MINECRAFT_20.landBiomesSize;
+    private static final int BASE_BARRENS_BIOME_SIZE = BCLEndBiomeSourceConfig.MINECRAFT_20.barrensBiomesSize;
     private static final boolean WITH_VOID_BIOMES = BCLEndBiomeSourceConfig.MINECRAFT_20.withVoidBiomes;
 
     @Shadow
@@ -139,7 +142,25 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
         if (vanillaBucket.equals(this.end)) {
             cir.setReturnValue(bcl$pickFromMap(this.bcl$centerMap, this.end, blockX, blockY, blockZ));
         } else if (vanillaBucket.equals(this.islands)) {
-            cir.setReturnValue(bcl$pickFromMap(this.bcl$voidMap, this.islands, blockX, blockY, blockZ));
+            final Holder<Biome> selectedVoid = bcl$pickFromMap(this.bcl$voidMap, this.islands, blockX, blockY, blockZ);
+            final ResourceKey<Biome> selectedVoidKey = selectedVoid.unwrapKey().orElse(null);
+            final boolean isCustomVoidBiome = selectedVoidKey != null && !selectedVoidKey.equals(Biomes.SMALL_END_ISLANDS);
+
+            if (isCustomVoidBiome && bcl$isNearLandBucket(blockX, blockY, blockZ, sampler)) {
+                // Keep island rims tied to the selected highlands root to avoid chunk-like void cuts on shorelines.
+                cir.setReturnValue(
+                        bcl$pickDependentBiome(
+                                selectedHighlands,
+                                this.bcl$barrensByHighlands,
+                                selectedHighlands,
+                                blockX,
+                                blockY,
+                                blockZ
+                        )
+                );
+            } else {
+                cir.setReturnValue(selectedVoid);
+            }
         } else if (vanillaBucket.equals(this.barrens)) {
             cir.setReturnValue(
                     bcl$pickDependentBiome(
@@ -196,6 +217,16 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
     }
 
     @Unique
+    private boolean bcl$isNearLandBucket(int blockX, int blockY, int blockZ, Climate.Sampler sampler) {
+        // 32 blocks catches shoreline transitions without suppressing deep-void custom biomes.
+        final int step = 32;
+        return !bcl$resolveVanillaBucket(blockX + step, blockY, blockZ, sampler).equals(this.islands)
+                || !bcl$resolveVanillaBucket(blockX - step, blockY, blockZ, sampler).equals(this.islands)
+                || !bcl$resolveVanillaBucket(blockX, blockY, blockZ + step, sampler).equals(this.islands)
+                || !bcl$resolveVanillaBucket(blockX, blockY, blockZ - step, sampler).equals(this.islands);
+    }
+
+    @Unique
     private void bcl$refreshMaps() {
         final RegistryAccess access = WorldBootstrap.getLastRegistryAccess();
         final int syncEpoch = BCLBiomeRegistry.getSyncEpoch();
@@ -235,17 +266,29 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
                 access.registry(BCLBiomeRegistry.BCL_BIOMES_REGISTRY).orElse(BCLBiomeRegistry.BUILTIN_BCL_BIOMES);
 
         final EndPickers pickers = bcl$buildPickers(biomeRegistry, bclRegistry);
-        this.bcl$landMap = new HexBiomeMap(this.bcl$seed, LAND_BIOME_SIZE, pickers.landPicker());
-        this.bcl$voidMap = new HexBiomeMap(this.bcl$seed, VOID_BIOME_SIZE, pickers.voidPicker());
-        this.bcl$centerMap = new HexBiomeMap(this.bcl$seed, CENTER_BIOME_SIZE, pickers.centerPicker());
+        final ModBiomeWorldgenConfig.ModSnapshot worldgenConfig = pickers.worldgenConfig();
+        final int landBiomeSize = bcl$getScaledBiomeSize(BASE_LAND_BIOME_SIZE, worldgenConfig.globalSizeMultiplier());
+        final int voidBiomeSize = bcl$getScaledBiomeSize(BASE_VOID_BIOME_SIZE, worldgenConfig.globalSizeMultiplier());
+        final int centerBiomeSize = bcl$getScaledBiomeSize(
+                BASE_CENTER_BIOME_SIZE,
+                worldgenConfig.globalSizeMultiplier()
+        );
+        final int barrensBiomeSize = bcl$getScaledBiomeSize(
+                BASE_BARRENS_BIOME_SIZE,
+                worldgenConfig.globalSizeMultiplier()
+        );
+
+        this.bcl$landMap = new HexBiomeMap(this.bcl$seed, landBiomeSize, pickers.landPicker());
+        this.bcl$voidMap = new HexBiomeMap(this.bcl$seed, voidBiomeSize, pickers.voidPicker());
+        this.bcl$centerMap = new HexBiomeMap(this.bcl$seed, centerBiomeSize, pickers.centerPicker());
         this.bcl$midlandsByHighlands = bcl$buildDependentMaps(
                 pickers.midlandsByHighlands(),
-                LAND_BIOME_SIZE,
+                landBiomeSize,
                 0L
         );
         this.bcl$barrensByHighlands = bcl$buildDependentMaps(
                 pickers.barrensByHighlands(),
-                BARRENS_BIOME_SIZE,
+                barrensBiomeSize,
                 0L
         );
         this.bcl$endRootByBiome = pickers.endRootByBiome();
@@ -282,6 +325,9 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
                 .stream()
                 .sorted((a, b) -> a.getKey().location().toString().compareTo(b.getKey().location().toString()))
                 .toList();
+        final ModBiomeWorldgenConfig.ModSnapshot worldgenConfig = ModBiomeWorldgenConfig.loadBetterEnd(
+                sortedBiomes.stream().map(Map.Entry::getKey).toList()
+        );
 
         for (Map.Entry<ResourceKey<Biome>, Biome> entry : sortedBiomes) {
             final ResourceKey<Biome> biomeKey = entry.getKey();
@@ -294,6 +340,21 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
             BiomeAPI.BiomeType type = bclBiome != null ? bclBiome.getIntendedType() : bcl$typeForUnknownBiome(biomeKey);
             type = bcl$applyIncludeOverrides(includeMap, biomeKey, type);
             if (!type.is(BiomeAPI.BiomeType.END)) {
+                continue;
+            }
+
+            final ModBiomeWorldgenConfig.BiomeWorldgenSettings worldgenSettings = worldgenConfig.settingsFor(biomeKey);
+            if (!worldgenSettings.enabled()) {
+                continue;
+            }
+
+            final float worldgenMultiplier = Mth.clamp(
+                    worldgenSettings.sizeMultiplier() * worldgenSettings.frequencyMultiplier()
+                            * worldgenConfig.globalFrequencyFor(biomeKey),
+                    0.0F,
+                    32.0F
+            );
+            if (worldgenMultiplier <= 0.0F) {
                 continue;
             }
 
@@ -312,15 +373,21 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
             }
 
             if (biomeKey.equals(net.minecraft.world.level.biome.Biomes.END_MIDLANDS)) {
-                bcl$getOrCreateDependentPicker(midlandsByHighlands, rootKey, biomeRegistry)
-                        .addBiome(bclBiome);
-                defaultMidlandsPicker.addBiome(bclBiome);
+                bcl$addBiomeToPicker(
+                        bcl$getOrCreateDependentPicker(midlandsByHighlands, rootKey, biomeRegistry),
+                        bclBiome,
+                        worldgenMultiplier
+                );
+                bcl$addBiomeToPicker(defaultMidlandsPicker, bclBiome, worldgenMultiplier);
                 continue;
             }
             if (biomeKey.equals(net.minecraft.world.level.biome.Biomes.END_BARRENS)) {
-                bcl$getOrCreateDependentPicker(barrensByHighlands, rootKey, biomeRegistry)
-                        .addBiome(bclBiome);
-                defaultBarrensPicker.addBiome(bclBiome);
+                bcl$addBiomeToPicker(
+                        bcl$getOrCreateDependentPicker(barrensByHighlands, rootKey, biomeRegistry),
+                        bclBiome,
+                        worldgenMultiplier
+                );
+                bcl$addBiomeToPicker(defaultBarrensPicker, bclBiome, worldgenMultiplier);
                 continue;
             }
 
@@ -332,24 +399,32 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
                 }
 
                 if (type.is(BiomeAPI.BiomeType.END_LAND)) {
-                    bcl$getOrCreateDependentPicker(midlandsByHighlands, rootKey, biomeRegistry).addBiome(bclBiome);
-                    defaultMidlandsPicker.addBiome(bclBiome);
+                    bcl$addBiomeToPicker(
+                            bcl$getOrCreateDependentPicker(midlandsByHighlands, rootKey, biomeRegistry),
+                            bclBiome,
+                            worldgenMultiplier
+                    );
+                    bcl$addBiomeToPicker(defaultMidlandsPicker, bclBiome, worldgenMultiplier);
                 } else if (type.is(BiomeAPI.BiomeType.END_BARRENS)) {
-                    bcl$getOrCreateDependentPicker(barrensByHighlands, rootKey, biomeRegistry).addBiome(bclBiome);
-                    defaultBarrensPicker.addBiome(bclBiome);
+                    bcl$addBiomeToPicker(
+                            bcl$getOrCreateDependentPicker(barrensByHighlands, rootKey, biomeRegistry),
+                            bclBiome,
+                            worldgenMultiplier
+                    );
+                    bcl$addBiomeToPicker(defaultBarrensPicker, bclBiome, worldgenMultiplier);
                 }
                 continue;
             }
 
             if (type.is(BiomeAPI.BiomeType.END_CENTER)) {
-                centerPicker.addBiome(bclBiome);
+                bcl$addBiomeToPicker(centerPicker, bclBiome, worldgenMultiplier);
             } else if (type.is(BiomeAPI.BiomeType.END_VOID)) {
-                voidPicker.addBiome(bclBiome);
+                bcl$addBiomeToPicker(voidPicker, bclBiome, worldgenMultiplier);
             } else if (type.is(BiomeAPI.BiomeType.END_BARRENS)) {
-                defaultBarrensPicker.addBiome(bclBiome);
+                bcl$addBiomeToPicker(defaultBarrensPicker, bclBiome, worldgenMultiplier);
             } else if (type.is(BiomeAPI.BiomeType.END_LAND)) {
                 if (!biomeKey.equals(net.minecraft.world.level.biome.Biomes.END_MIDLANDS)) {
-                    landPicker.addBiome(bclBiome);
+                    bcl$addBiomeToPicker(landPicker, bclBiome, worldgenMultiplier);
                 }
             }
         }
@@ -399,7 +474,8 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
                 Map.copyOf(midlandsByHighlands),
                 Map.copyOf(barrensByHighlands),
                 Map.copyOf(endRootByBiome),
-                Set.copyOf(endBiomes)
+                Set.copyOf(endBiomes),
+                worldgenConfig
         );
     }
 
@@ -434,6 +510,17 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
             }
         }
         return defaultType;
+    }
+
+    @Unique
+    private static void bcl$addBiomeToPicker(BiomePicker picker, BCLBiome biome, float multiplier) {
+        picker.setGenerationWeightMultiplier(biome, multiplier);
+        picker.addBiome(biome);
+    }
+
+    @Unique
+    private static int bcl$getScaledBiomeSize(int baseBiomeSize, float multiplier) {
+        return Mth.clamp(Math.round(baseBiomeSize * Mth.clamp(multiplier, 0.05F, 16.0F)), 1, 4096);
     }
 
     @Unique
@@ -593,6 +680,7 @@ public abstract class TheEndBiomeSourceMixin implements BiomeSourceWithSeed {
             Map<ResourceKey<Biome>, BiomePicker> midlandsByHighlands,
             Map<ResourceKey<Biome>, BiomePicker> barrensByHighlands,
             Map<ResourceKey<Biome>, ResourceKey<Biome>> endRootByBiome,
-            Set<Holder<Biome>> endBiomes
+            Set<Holder<Biome>> endBiomes,
+            ModBiomeWorldgenConfig.ModSnapshot worldgenConfig
     ) {}
 }
