@@ -58,8 +58,8 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
             this.alright = false;
             return;
         }
-        this.output = new ItemStack(output, 1);
-        this.alright = true;
+        this.output = resolveItemStack(output, 1);
+        this.alright = !this.output.isEmpty() && !this.output.is(Items.AIR);
     }
 
     public T setCategory(RecipeCategory category) {
@@ -86,9 +86,11 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
 
     protected T unlockedBy(ItemLike item) {
         if (!BCLib.isDatagen()) return (T) this;
+        Item resolvedItem = resolveItem(item);
+        if (resolvedItem == Items.AIR) return (T) this;
         this.unlocks(
-                "has_" + item.asItem().getDescriptionId(),
-                hasItem(item)
+                "has_" + resolvedItem.getDescriptionId(),
+                hasItem(resolvedItem)
         );
 
         return (T) this;
@@ -136,7 +138,12 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
      */
     protected T unlocks(String name, ItemLike... items) {
         if (!BCLib.isDatagen()) return (T) this;
-        return unlocks(name, InventoryChangeTrigger.TriggerInstance.hasItems(items));
+        ItemLike[] resolvedItems = Arrays.stream(items)
+                                         .map(AbstractBaseRecipeBuilder::resolveItem)
+                                         .filter(item -> item != Items.AIR)
+                                         .toArray(ItemLike[]::new);
+        if (resolvedItems.length == 0) return (T) this;
+        return unlocks(name, InventoryChangeTrigger.TriggerInstance.hasItems(resolvedItems));
     }
 
     /**
@@ -159,8 +166,36 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
 
     protected abstract T unlocks(String name, CriterionTriggerInstance trigger);
 
+    protected static Item resolveItem(ItemLike itemLike) {
+        if (itemLike == null) return Items.AIR;
+        Item item = itemLike.asItem();
+        if (item != Items.AIR) return item;
+
+        if (itemLike instanceof Block block) {
+            ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(block);
+            if (blockId != null && blockId != BuiltInRegistries.BLOCK.getDefaultKey()) {
+                Item itemByBlockId = BuiltInRegistries.ITEM.get(blockId);
+                if (itemByBlockId != Items.AIR
+                        && BuiltInRegistries.ITEM.getKey(itemByBlockId) != BuiltInRegistries.ITEM.getDefaultKey()) {
+                    return itemByBlockId;
+                }
+            }
+        }
+
+        return item;
+    }
+
+    protected static ItemStack resolveItemStack(ItemLike itemLike) {
+        return resolveItemStack(itemLike, 1);
+    }
+
+    protected static ItemStack resolveItemStack(ItemLike itemLike, int count) {
+        Item item = resolveItem(itemLike);
+        return item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item, count);
+    }
+
     private static CriterionTriggerInstance hasItem(ItemLike item) {
-        return InventoryChangeTrigger.TriggerInstance.hasItems(item);
+        return InventoryChangeTrigger.TriggerInstance.hasItems(resolveItem(item));
     }
 
     private static CriterionTriggerInstance hasTag(TagKey<Item> tag) {

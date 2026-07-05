@@ -104,10 +104,19 @@ public class CraftingRecipeBuilder extends AbstractBaseRecipeBuilder<CraftingRec
         for (Map.Entry<Character, ItemLike[]> entry : materialItems.entrySet()) {
             ItemLike[] values = entry.getValue();
             if (values != null) {
+                ItemStack[] resolvedStacks = new ItemStack[values.length];
+                int index = 0;
                 for (ItemLike item : values) {
                     this.alright &= BCLRecipeManager.exists(item);
+                    ItemStack stack = resolveItemStack(item);
+                    if (stack.isEmpty()) {
+                        this.alright = false;
+                    } else {
+                        resolvedStacks[index++] = stack;
+                    }
                 }
-                addMaterial(entry.getKey(), Ingredient.of(values));
+                addMaterial(entry.getKey(), Ingredient.of(Arrays.stream(resolvedStacks)
+                                                                .limit(index)));
             }
         }
         materialsResolved = true;

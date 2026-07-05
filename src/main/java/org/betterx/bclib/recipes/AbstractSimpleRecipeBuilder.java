@@ -17,7 +17,7 @@ public abstract class AbstractSimpleRecipeBuilder<T extends AbstractSimpleRecipe
     private boolean primaryInputResolved;
 
     protected AbstractSimpleRecipeBuilder(ResourceLocation id, ItemLike output) {
-        this(id, BCLib.isDatagen() ? new ItemStack(output, 1) : ItemStack.EMPTY);
+        super(id, output);
     }
 
     protected AbstractSimpleRecipeBuilder(ResourceLocation id, ItemStack stack) {
@@ -65,10 +65,19 @@ public abstract class AbstractSimpleRecipeBuilder<T extends AbstractSimpleRecipe
             return;
         }
         if (primaryInputItems != null) {
+            ItemStack[] resolvedInputs = new ItemStack[primaryInputItems.length];
+            int index = 0;
             for (ItemLike item : primaryInputItems) {
                 this.alright &= RecipeHelper.exists(item);
+                ItemStack stack = resolveItemStack(item);
+                if (stack.isEmpty()) {
+                    this.alright = false;
+                } else {
+                    resolvedInputs[index++] = stack;
+                }
             }
-            primaryInput = Ingredient.of(primaryInputItems);
+            primaryInput = Ingredient.of(java.util.Arrays.stream(resolvedInputs)
+                                                         .limit(index));
         }
     }
 
