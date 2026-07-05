@@ -7,6 +7,7 @@ import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.interfaces.NoiseGeneratorSettingsProvider;
 import org.betterx.bclib.mixin.common.ChunkGeneratorAccessor;
 import org.betterx.worlds.together.WorldsTogether;
+import org.betterx.worlds.together.biomesource.BlueprintBiomeSourceCompat;
 import org.betterx.worlds.together.biomesource.MergeableBiomeSource;
 import org.betterx.worlds.together.biomesource.ReloadableBiomeSource;
 import org.betterx.worlds.together.chunkgenerator.EnforceableChunkGenerator;
@@ -118,6 +119,21 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
     }
 
     private void refreshExternalGenerationState() {
+        if (knownDimensionKey != null && BlueprintBiomeSourceCompat.wraps(getBiomeSource(), initialBiomeSource)) {
+            BiomeSource refreshedSource = BlueprintBiomeSourceCompat.refreshWrappedSource(
+                    getBiomeSource(),
+                    knownDimensionKey
+            );
+            if (refreshedSource != getBiomeSource() && this instanceof ChunkGeneratorAccessor acc) {
+                acc.bcl_setBiomeSource(refreshedSource);
+                logCompat(
+                        "Refreshed Blueprint modded biome source for {}: wrapper={}, biomes={}",
+                        knownDimensionKey.location(),
+                        describeObject(refreshedSource),
+                        refreshedSource.possibleBiomes().size()
+                );
+            }
+        }
         rebuildFeaturesPerStep(getBiomeSource());
         if (knownDimensionKey != null) {
             injectSurfaceRules(knownDimensionKey);
@@ -131,6 +147,17 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
      */
     @Override
     public void restoreInitialBiomeSource(ResourceKey<LevelStem> dimensionKey) {
+        if (BlueprintBiomeSourceCompat.wraps(getBiomeSource(), initialBiomeSource)) {
+            logCompat(
+                    "Keeping Blueprint modded biome source for {}: wrapper={}, original={}",
+                    dimensionKey.location(),
+                    describeObject(getBiomeSource()),
+                    describeObject(initialBiomeSource)
+            );
+            rebuildFeaturesPerStep(getBiomeSource());
+            return;
+        }
+
         if (initialBiomeSource != getBiomeSource()) {
             if (this instanceof ChunkGeneratorAccessor acc) {
                 if (initialBiomeSource instanceof MergeableBiomeSource bs) {
@@ -188,6 +215,17 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
         }
 
         final BiomeSource externalBiomeSource = externalChunkGenerator.getBiomeSource();
+        if (BlueprintBiomeSourceCompat.wraps(externalBiomeSource, getBiomeSource())) {
+            logCompat(
+                    "Skipping Blueprint wrapper merge for {}: externalBiomeSource={}, currentBiomeSource={}",
+                    dimensionKey.location(),
+                    describeObject(externalBiomeSource),
+                    describeObject(getBiomeSource())
+            );
+            rebuildFeaturesPerStep(getBiomeSource());
+            return;
+        }
+
         if (externalBiomeSource == null || externalBiomeSource == getBiomeSource()) {
             logCompat(
                     "Skipping external merge for {}: externalBiomeSource={}, currentBiomeSource={}",
@@ -247,8 +285,21 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
         final BiomeSource bs;
         if (referenceGenerator.getBiomeSource() instanceof MergeableBiomeSource mbs) {
             final BiomeSource loadedBiomeSource = loadedChunkGenerator.getBiomeSource();
-            bs = mbs.mergeWithBiomeSource(loadedBiomeSource);
-            if (mbs instanceof BCLBiomeSource bclBiomeSource && !(loadedBiomeSource instanceof BCLBiomeSource)) {
+            final boolean loadedBlueprintWrapsReference = BlueprintBiomeSourceCompat.wraps(
+                    loadedBiomeSource,
+                    referenceGenerator.getBiomeSource()
+            );
+            bs = loadedBlueprintWrapsReference
+                    ? referenceGenerator.getBiomeSource()
+                    : mbs.mergeWithBiomeSource(loadedBiomeSource);
+            if (loadedBlueprintWrapsReference) {
+                logCompat(
+                        "Enforce keeping Blueprint wrapper outside BCL source for {}: loadedBiomeSource={}, referenceBiomeSource={}",
+                        dimensionKey.location(),
+                        describeObject(loadedBiomeSource),
+                        describeObject(referenceGenerator.getBiomeSource())
+                );
+            } else if (mbs instanceof BCLBiomeSource bclBiomeSource && !(loadedBiomeSource instanceof BCLBiomeSource)) {
                 logCompat(
                         "Enforce applying loaded external context for {}: loadedGenerator={}, loadedBiomeSource={}",
                         dimensionKey.location(),

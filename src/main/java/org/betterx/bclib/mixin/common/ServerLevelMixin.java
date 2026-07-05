@@ -1,6 +1,7 @@
 package org.betterx.bclib.mixin.common;
 
 import org.betterx.bclib.api.v2.LifeCycleAPI;
+import org.betterx.worlds.together.biomesource.BlueprintBiomeSourceCompat;
 import org.betterx.worlds.together.world.BiomeSourceWithNoiseRelatedSettings;
 import org.betterx.worlds.together.world.BiomeSourceWithSeed;
 
@@ -79,13 +80,21 @@ public abstract class ServerLevelMixin extends Level {
                 bl2
         );
 
-        if (levelStem.generator().getBiomeSource() instanceof BiomeSourceWithSeed source) {
+        if (BlueprintBiomeSourceCompat.setSeed(levelStem.generator().getBiomeSource(), level.getSeed())) {
+            // handled directly or through Blueprint's original source
+        } else if (levelStem.generator().getBiomeSource() instanceof BiomeSourceWithSeed source) {
             source.setSeed(level.getSeed());
         }
 
-        if (levelStem.generator().getBiomeSource() instanceof BiomeSourceWithNoiseRelatedSettings bcl
-                && levelStem.generator() instanceof NoiseBasedChunkGenerator noiseGenerator) {
-            bcl.onLoadGeneratorSettings(noiseGenerator.generatorSettings().value());
+        if (levelStem.generator() instanceof NoiseBasedChunkGenerator noiseGenerator) {
+            if (BlueprintBiomeSourceCompat.onLoadGeneratorSettings(
+                    levelStem.generator().getBiomeSource(),
+                    noiseGenerator.generatorSettings().value()
+            )) {
+                // handled directly or through Blueprint's original source
+            } else if (levelStem.generator().getBiomeSource() instanceof BiomeSourceWithNoiseRelatedSettings bcl) {
+                bcl.onLoadGeneratorSettings(noiseGenerator.generatorSettings().value());
+            }
         }
 
         if (bclib_lastWorld != null && bclib_lastWorld.equals(levelStorageAccess.getLevelId())) {

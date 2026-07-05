@@ -123,6 +123,7 @@ public class CommonBlockTags {
         );
         TagManager.BLOCKS.addOtherTags(
                 BlockTags.NETHER_CARVER_REPLACEABLES,
+                CommonBlockTags.NETHER_TERRAIN,
                 CommonBlockTags.NETHER_STONES,
                 CommonBlockTags.NETHERRACK
         );

@@ -1,6 +1,7 @@
 package org.betterx.worlds.together.levelgen;
 
 import org.betterx.worlds.together.WorldsTogether;
+import org.betterx.worlds.together.biomesource.BlueprintBiomeSourceCompat;
 import org.betterx.worlds.together.world.BiomeSourceWithNoiseRelatedSettings;
 import org.betterx.worlds.together.world.BiomeSourceWithSeed;
 import org.betterx.worlds.together.world.WorldConfig;
@@ -45,13 +46,21 @@ public class WorldGenUtil {
                 .createWorldDimensions();
 
         for (LevelStem stem : settings.dimensions()) {
-            if (stem.generator().getBiomeSource() instanceof BiomeSourceWithSeed bcl) {
+            if (BlueprintBiomeSourceCompat.setSeed(stem.generator().getBiomeSource(), seed)) {
+                // handled directly or through Blueprint's original source
+            } else if (stem.generator().getBiomeSource() instanceof BiomeSourceWithSeed bcl) {
                 bcl.setSeed(seed);
             }
 
-            if (stem.generator().getBiomeSource() instanceof BiomeSourceWithNoiseRelatedSettings bcl
-                    && stem.generator() instanceof NoiseBasedChunkGenerator noiseGenerator) {
-                bcl.onLoadGeneratorSettings(noiseGenerator.generatorSettings().value());
+            if (stem.generator() instanceof NoiseBasedChunkGenerator noiseGenerator) {
+                if (BlueprintBiomeSourceCompat.onLoadGeneratorSettings(
+                        stem.generator().getBiomeSource(),
+                        noiseGenerator.generatorSettings().value()
+                )) {
+                    // handled directly or through Blueprint's original source
+                } else if (stem.generator().getBiomeSource() instanceof BiomeSourceWithNoiseRelatedSettings bcl) {
+                    bcl.onLoadGeneratorSettings(noiseGenerator.generatorSettings().value());
+                }
             }
         }
 

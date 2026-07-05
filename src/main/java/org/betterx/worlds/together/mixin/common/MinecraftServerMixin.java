@@ -1,5 +1,6 @@
 package org.betterx.worlds.together.mixin.common;
 
+import org.betterx.worlds.together.chunkgenerator.ChunkGeneratorUtils;
 import org.betterx.worlds.together.world.event.WorldBootstrap;
 
 import net.minecraft.core.LayeredRegistryAccess;
@@ -30,6 +31,7 @@ public class MinecraftServerMixin {
     private void together_addSurfaceRules(ChunkProgressListener worldGenerationProgressListener, CallbackInfo ci) {
         final Registry<LevelStem> dimensionRegistry = this.registries.compositeAccess()
                                                                      .registryOrThrow(Registries.LEVEL_STEM);
+        ChunkGeneratorUtils.restoreOriginalBiomeSourceInAllDimension(dimensionRegistry);
         WorldBootstrap.finalizeWorldGenSettings(dimensionRegistry);
     }
 }

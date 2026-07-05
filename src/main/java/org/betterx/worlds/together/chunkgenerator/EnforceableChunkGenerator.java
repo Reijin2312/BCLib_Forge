@@ -1,6 +1,7 @@
 package org.betterx.worlds.together.chunkgenerator;
 
 import org.betterx.worlds.together.biomesource.BiomeSourceWithConfig;
+import org.betterx.worlds.together.biomesource.BlueprintBiomeSourceCompat;
 import org.betterx.worlds.together.biomesource.MergeableBiomeSource;
 
 import net.minecraft.core.Registry;
@@ -26,6 +27,11 @@ public interface EnforceableChunkGenerator<G extends ChunkGenerator> {
 
         BiomeSource one = self.getBiomeSource();
         BiomeSource two = chunkGenerator.getBiomeSource();
+        if (one == two) return false;
+        if (BlueprintBiomeSourceCompat.wraps(one, two) || BlueprintBiomeSourceCompat.wraps(two, one)) return false;
+
+        one = BlueprintBiomeSourceCompat.unwrapOriginalSource(one);
+        two = BlueprintBiomeSourceCompat.unwrapOriginalSource(two);
         if (one == two) return false;
 
         if (one instanceof BiomeSourceWithConfig<?, ?> ba && two instanceof BiomeSourceWithConfig<?, ?> bb) {
