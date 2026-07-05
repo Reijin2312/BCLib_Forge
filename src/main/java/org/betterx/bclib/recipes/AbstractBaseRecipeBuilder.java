@@ -7,10 +7,10 @@ import org.betterx.bclib.util.RecipeHelper;
 
 import net.minecraft.advancements.CriterionTriggerInstance;
 import net.minecraft.advancements.critereon.InventoryChangeTrigger;
+import net.minecraft.advancements.critereon.ItemPredicate;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.recipes.FinishedRecipe;
 import net.minecraft.data.recipes.RecipeCategory;
-import net.minecraft.data.recipes.RecipeProvider;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
@@ -35,13 +35,31 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
 
     protected AbstractBaseRecipeBuilder(ResourceLocation id, ItemStack output) {
         this.id = id;
-        this.output = output;
         this.category = RecipeCategory.MISC;
-        this.alright = RecipeHelper.exists(output.getItem());
+        if (!BCLib.isDatagen()) {
+            this.output = ItemStack.EMPTY;
+            this.alright = false;
+            return;
+        }
+        this.output = output == null ? ItemStack.EMPTY : output;
+        this.alright = output != null && RecipeHelper.exists(output.getItem());
     }
 
     protected AbstractBaseRecipeBuilder(ResourceLocation id, ItemLike output) {
-        this(id, new ItemStack(output, 1));
+        this.id = id;
+        this.category = RecipeCategory.MISC;
+        if (!BCLib.isDatagen()) {
+            this.output = ItemStack.EMPTY;
+            this.alright = false;
+            return;
+        }
+        if (output == null || !RecipeHelper.exists(output)) {
+            this.output = ItemStack.EMPTY;
+            this.alright = false;
+            return;
+        }
+        this.output = resolveItemStack(output, 1);
+        this.alright = !this.output.isEmpty() && !this.output.is(Items.AIR);
     }
 
     public T setCategory(RecipeCategory category) {
@@ -55,28 +73,34 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
     }
 
     protected T setOutputCount(int count) {
+        if (this.output.isEmpty()) return (T) this;
         this.output.setCount(count);
         return (T) this;
     }
 
     protected T setOutputTag(CompoundTag tag) {
+        if (this.output.isEmpty()) return (T) this;
         this.output.setTag(tag);
         return (T) this;
     }
 
     protected T unlockedBy(ItemLike item) {
+        if (!BCLib.isDatagen()) return (T) this;
+        Item resolvedItem = resolveItem(item);
+        if (resolvedItem == Items.AIR) return (T) this;
         this.unlocks(
-                "has_" + item.asItem().getDescriptionId(),
-                RecipeProvider.has(item.asItem())
+                "has_" + resolvedItem.getDescriptionId(),
+                hasItem(resolvedItem)
         );
 
         return (T) this;
     }
 
     protected T unlockedBy(TagKey<Item> tag) {
+        if (!BCLib.isDatagen()) return (T) this;
         this.unlocks(
                 "has_tag_" + tag.location().getNamespace() + "_" + tag.location().getPath(),
-                RecipeProvider.has(tag)
+                hasTag(tag)
         );
 
         return (T) this;
@@ -92,6 +116,7 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
      * @param items {@link Item}s or {@link Block}s that will unlock the recipe.
      */
     protected T unlockedBy(ItemLike... items) {
+        if (!BCLib.isDatagen()) return (T) this;
         String name = "has_" +
                 Arrays.stream(items)
                       .map(block -> (block instanceof Block)
@@ -112,7 +137,13 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
      * @param items {@link Item}s or {@link Block}s that will unlock the recipe.
      */
     protected T unlocks(String name, ItemLike... items) {
-        return unlocks(name, InventoryChangeTrigger.TriggerInstance.hasItems(items));
+        if (!BCLib.isDatagen()) return (T) this;
+        ItemLike[] resolvedItems = Arrays.stream(items)
+                                         .map(AbstractBaseRecipeBuilder::resolveItem)
+                                         .filter(item -> item != Items.AIR)
+                                         .toArray(ItemLike[]::new);
+        if (resolvedItems.length == 0) return (T) this;
+        return unlocks(name, InventoryChangeTrigger.TriggerInstance.hasItems(resolvedItems));
     }
 
     /**
@@ -124,6 +155,7 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
      * @param stacks {@link ItemStack}s that will unlock the recipe. The count is ignored.
      */
     protected T unlockedBy(ItemStack... stacks) {
+        if (!BCLib.isDatagen()) return (T) this;
         ItemLike[] items = Arrays.stream(stacks)
                                  .filter(stack -> stack.getCount() > 0)
                                  .map(stack -> (ItemLike) stack.getItem())
@@ -134,8 +166,46 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
 
     protected abstract T unlocks(String name, CriterionTriggerInstance trigger);
 
+    protected static Item resolveItem(ItemLike itemLike) {
+        if (itemLike == null) return Items.AIR;
+        Item item = itemLike.asItem();
+        if (item != Items.AIR) return item;
+
+        if (itemLike instanceof Block block) {
+            ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(block);
+            if (blockId != null && blockId != BuiltInRegistries.BLOCK.getDefaultKey()) {
+                Item itemByBlockId = BuiltInRegistries.ITEM.get(blockId);
+                if (itemByBlockId != Items.AIR
+                        && BuiltInRegistries.ITEM.getKey(itemByBlockId) != BuiltInRegistries.ITEM.getDefaultKey()) {
+                    return itemByBlockId;
+                }
+            }
+        }
+
+        return item;
+    }
+
+    protected static ItemStack resolveItemStack(ItemLike itemLike) {
+        return resolveItemStack(itemLike, 1);
+    }
+
+    protected static ItemStack resolveItemStack(ItemLike itemLike, int count) {
+        Item item = resolveItem(itemLike);
+        return item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item, count);
+    }
+
+    private static CriterionTriggerInstance hasItem(ItemLike item) {
+        return InventoryChangeTrigger.TriggerInstance.hasItems(resolveItem(item));
+    }
+
+    private static CriterionTriggerInstance hasTag(TagKey<Item> tag) {
+        return InventoryChangeTrigger.TriggerInstance.hasItems(
+                ItemPredicate.Builder.item().of(tag).build()
+        );
+    }
 
     public final T build() {
+        if (!BCLib.isDatagen()) return (T) this;
         if (!checkRecipe())
             return (T) this;
         RecipeDataProvider.register(this);
@@ -147,12 +217,16 @@ public abstract class AbstractBaseRecipeBuilder<T extends AbstractBaseRecipeBuil
             BCLib.LOGGER.warning("Output for Recipe can't be 'null', recipe {} will be ignored!", id);
             return false;
         }
-        if (output.is(Items.AIR)) {
+        if (!alright) {
+            BCLib.LOGGER.debug("Can't add recipe {}! Ingredient or output do not exist.", id);
+            return false;
+        }
+        if (output.isEmpty() || output.is(Items.AIR)) {
             BCLib.LOGGER.warning("Unable to build Recipe " + id + ": Result is AIR");
             return false;
         }
-        if (!alright) {
-            BCLib.LOGGER.debug("Can't add recipe {}! Ingeredient or output do not exists.", id);
+        if (BuiltInRegistries.ITEM.getKey(output.getItem()) == null) {
+            BCLib.LOGGER.warning("Unable to build Recipe {}: Result item is not registered", id);
             return false;
         }
         return true;
