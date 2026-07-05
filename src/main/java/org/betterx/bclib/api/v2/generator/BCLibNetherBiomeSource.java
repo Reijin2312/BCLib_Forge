@@ -13,12 +13,9 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.biome.Climate;
-
-import net.fabricmc.fabric.api.biome.v1.NetherBiomes;
 
 import java.util.Map;
 
@@ -83,16 +80,6 @@ public class BCLibNetherBiomeSource extends BCLBiomeSource implements BiomeSourc
         return Map.of(defaultBiomeType(), this.biomePicker);
     }
 
-    @Override
-    protected BiomeAPI.BiomeType typeForUnknownBiome(ResourceKey<Biome> biomeKey, BiomeAPI.BiomeType defaultType) {
-        //
-        if (NetherBiomes.canGenerateInNether(biomeKey)) {
-            return BiomeAPI.BiomeType.NETHER;
-        }
-
-        return super.typeForUnknownBiome(biomeKey, defaultType);
-    }
-
     public static void register() {
         Registry.register(BuiltInRegistries.BIOME_SOURCE, BCLib.makeID("nether_biome_source"), CODEC);
     }
@@ -101,14 +88,18 @@ public class BCLibNetherBiomeSource extends BCLBiomeSource implements BiomeSourc
     public Holder<Biome> getNoiseBiome(int biomeX, int biomeY, int biomeZ, Climate.Sampler var4) {
         if (!wasBound()) reloadBiomes(false);
 
-        if (biomeMap == null)
-            return this.possibleBiomes().stream().findFirst().get();
+        if (biomeMap == null) {
+            Holder<Biome> fallback = this.ownedPossibleBiomes().stream()
+                                        .findFirst()
+                                        .orElseGet(() -> this.possibleBiomes().stream().findFirst().get());
+            return applyExternalBiomeSource(fallback, biomeX, biomeY, biomeZ, var4);
+        }
 
         if ((biomeX & 63) == 0 && (biomeZ & 63) == 0) {
             biomeMap.clearCache();
         }
         BiomePicker.ActualBiome bb = biomeMap.getBiome(biomeX << 2, biomeY << 2, biomeZ << 2);
-        return bb.biome;
+        return applyExternalBiomeSource(bb.biome, biomeX, biomeY, biomeZ, var4);
     }
 
     @Override

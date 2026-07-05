@@ -474,6 +474,15 @@ public class BCLBiome implements BiomeData {
         return biomeID.getNamespace() + "." + biomeID.getPath();
     }
 
+    /**
+     * Returns whether this biome should be considered by BetterX biome pickers.
+     * Mods can override this to expose per-biome generation toggles without
+     * unregistering datapack entries.
+     */
+    public boolean isPickable() {
+        return true;
+    }
+
     private final boolean didLoadConfig = false;
 
     public boolean isEdgeBiome() {

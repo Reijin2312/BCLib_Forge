@@ -113,6 +113,17 @@ public class BonemealAPI {
 
     @ApiStatus.Internal
     public boolean runSpreaders(ItemStack itemStack, Level level, BlockPos blockPos, boolean forceBonemeal) {
+        return runSpreaders(itemStack, level, blockPos, forceBonemeal, true);
+    }
+
+    @ApiStatus.Internal
+    public boolean runSpreaders(
+            ItemStack itemStack,
+            Level level,
+            BlockPos blockPos,
+            boolean forceBonemeal,
+            boolean consumeBonemeal
+    ) {
         BlockState blockState = level.getBlockState(blockPos);
         BonemealBlockSpreader spreader = org.betterx.bclib.api.v3.bonemeal.BonemealAPI
                 .INSTANCE
@@ -122,7 +133,9 @@ public class BonemealAPI {
             if (spreader.isValidBonemealSpreadTarget(level, blockPos, blockState, level.isClientSide)) {
                 if (level instanceof ServerLevel) {
                     if (spreader.performBonemealSpread((ServerLevel) level, level.random, blockPos, blockState)) {
-                        itemStack.shrink(1);
+                        if (consumeBonemeal) {
+                            itemStack.shrink(1);
+                        }
                     }
                 }
                 return true;
@@ -139,7 +152,9 @@ public class BonemealAPI {
                     if (forceBonemeal || fSpreader.isBonemealSuccess(level, level.random, blockPos, blockState)) {
                         fSpreader.performBonemeal((ServerLevel) level, level.random, blockPos, blockState);
                     }
-                    itemStack.shrink(1);
+                    if (consumeBonemeal) {
+                        itemStack.shrink(1);
+                    }
                 }
                 return true;
             }
