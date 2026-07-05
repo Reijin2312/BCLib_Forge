@@ -54,6 +54,9 @@ public class BiomePicker {
     }
 
     private boolean isAllowed(BCLBiome b) {
+        if (!b.isPickable()) {
+            return false;
+        }
         if (allowedBiomes == null) return true;
         return allowedBiomes.contains(b.getID().toString());
     }
@@ -65,6 +68,9 @@ public class BiomePicker {
     }
 
     public void addBiome(BCLBiome biome) {
+        if (!biome.isPickable()) {
+            return;
+        }
         biomes.add(create(biome));
     }
 

@@ -1,7 +1,9 @@
 package org.betterx.bclib.api.v2.generator;
 
 import org.betterx.bclib.BCLib;
+import org.betterx.bclib.api.v2.generator.compat.TerraBlenderNoiseSettingsCompat;
 import org.betterx.bclib.api.v2.levelgen.LevelGenUtil;
+import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.interfaces.NoiseGeneratorSettingsProvider;
 import org.betterx.bclib.mixin.common.ChunkGeneratorAccessor;
 import org.betterx.worlds.together.WorldsTogether;
@@ -38,7 +40,6 @@ import net.minecraft.world.level.levelgen.synth.NormalNoise;
 
 import com.google.common.base.Suppliers;
 
-import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +70,7 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
     );
 
     public final BiomeSource initialBiomeSource;
+    private ResourceKey<LevelStem> knownDimensionKey;
 
     public BCLChunkGenerator(
             BiomeSource biomeSource,
@@ -76,12 +78,16 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
     ) {
         super(biomeSource, holder);
         initialBiomeSource = biomeSource;
+        knownDimensionKey = null;
+        if (biomeSource instanceof BCLBiomeSource bclBiomeSource) {
+            bclBiomeSource.setExternalBiomeSourcePreparedCallback(this::refreshExternalGenerationState);
+        }
         if (biomeSource instanceof BiomeSourceWithNoiseRelatedSettings bcl && holder.isBound()) {
             bcl.onLoadGeneratorSettings(holder.value());
         }
 
         if (WorldsTogether.RUNS_TERRABLENDER) {
-            applyTerraBlenderRegionType(holder, null, biomeSource);
+            TerraBlenderNoiseSettingsCompat.applyRegionType(holder, null, biomeSource);
             BCLib.LOGGER.info("Make sure features are loaded from terrablender:" + biomeSource.getClass().getName());
 
             //terrablender is invalidating the feature initialization
@@ -100,6 +106,21 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
                     (hh) -> function.apply(hh).features(),
                     true
             )));
+            logCompat(
+                    "Rebuilt featuresPerStep for {} with {} possible biomes: {}",
+                    describeObject(this),
+                    biomeSource.possibleBiomes().size(),
+                    biomeSource instanceof BCLBiomeSource bclBiomeSource
+                            ? bclBiomeSource.getNamespaces()
+                            : biomeSource.possibleBiomes().size()
+            );
+        }
+    }
+
+    private void refreshExternalGenerationState() {
+        rebuildFeaturesPerStep(getBiomeSource());
+        if (knownDimensionKey != null) {
+            injectSurfaceRules(knownDimensionKey);
         }
     }
 
@@ -142,11 +163,65 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
 
     @Override
     public void injectSurfaceRules(ResourceKey<LevelStem> dimensionKey) {
+        this.knownDimensionKey = dimensionKey;
         if (WorldsTogether.RUNS_TERRABLENDER) {
-            applyTerraBlenderRegionType(generatorSettings(), dimensionKey, this.getBiomeSource());
+            TerraBlenderNoiseSettingsCompat.applyRegionType(generatorSettings(), dimensionKey, this.getBiomeSource());
         }
 
         InjectableSurfaceRules.super.injectSurfaceRules(dimensionKey);
+    }
+
+    public void mergeExternalBiomeSource(
+            RegistryAccess access,
+            ResourceKey<LevelStem> dimensionKey,
+            Holder<DimensionType> dimensionType,
+            ChunkGenerator externalChunkGenerator
+    ) {
+        this.knownDimensionKey = dimensionKey;
+        if (externalChunkGenerator == null || externalChunkGenerator == this) {
+            logCompat(
+                    "Skipping external merge for {}: externalGenerator={}",
+                    dimensionKey.location(),
+                    describeObject(externalChunkGenerator)
+            );
+            return;
+        }
+
+        final BiomeSource externalBiomeSource = externalChunkGenerator.getBiomeSource();
+        if (externalBiomeSource == null || externalBiomeSource == getBiomeSource()) {
+            logCompat(
+                    "Skipping external merge for {}: externalBiomeSource={}, currentBiomeSource={}",
+                    dimensionKey.location(),
+                    describeObject(externalBiomeSource),
+                    describeObject(getBiomeSource())
+            );
+            return;
+        }
+
+        logCompat(
+                "Merging external biome source for {}: targetGenerator={}, targetBiomeSource={}, externalGenerator={}, externalBiomeSource={}",
+                dimensionKey.location(),
+                describeObject(this),
+                describeObject(getBiomeSource()),
+                describeObject(externalChunkGenerator),
+                describeObject(externalBiomeSource)
+        );
+        if (getBiomeSource() instanceof MergeableBiomeSource mbs) {
+            final BiomeSource bs = mbs.mergeWithBiomeSource(externalBiomeSource);
+            if (mbs instanceof BCLBiomeSource bclBiomeSource) {
+                bclBiomeSource.setExternalBiomeSourceContext(
+                        access,
+                        dimensionType,
+                        dimensionKey,
+                        externalChunkGenerator
+                );
+            }
+
+            if (bs != getBiomeSource() && this instanceof ChunkGeneratorAccessor acc) {
+                acc.bcl_setBiomeSource(bs);
+            }
+            rebuildFeaturesPerStep(getBiomeSource());
+        }
     }
 
     @Override
@@ -157,26 +232,73 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
             ChunkGenerator loadedChunkGenerator,
             Registry<LevelStem> dimensionRegistry
     ) {
+        this.knownDimensionKey = dimensionKey;
         BCLib.LOGGER.info("Enforcing Correct Generator for " + dimensionKey.location().toString() + ".");
+        logCompat(
+                "Enforce start for {}: referenceGenerator={}, referenceBiomeSource={}, loadedGenerator={}, loadedBiomeSource={}",
+                dimensionKey.location(),
+                describeObject(this),
+                describeObject(getBiomeSource()),
+                describeObject(loadedChunkGenerator),
+                describeObject(loadedChunkGenerator.getBiomeSource())
+        );
 
         ChunkGenerator referenceGenerator = this;
-        if (loadedChunkGenerator instanceof org.betterx.bclib.interfaces.ChunkGeneratorAccessor generator) {
-            if (loadedChunkGenerator instanceof NoiseGeneratorSettingsProvider noiseProvider) {
-                if (referenceGenerator instanceof NoiseGeneratorSettingsProvider referenceProvider) {
-                    final BiomeSource bs;
-                    if (referenceGenerator.getBiomeSource() instanceof MergeableBiomeSource mbs) {
-                        bs = mbs.mergeWithBiomeSource(loadedChunkGenerator.getBiomeSource());
-                    } else {
-                        bs = referenceGenerator.getBiomeSource();
-                    }
-
-                    referenceProvider.bclib_getNoiseGeneratorSettingHolders();
-                    referenceGenerator = new BCLChunkGenerator(
-                            bs,
-                            noiseProvider.bclib_getNoiseGeneratorSettingHolders()
-                    );
-                }
+        final BiomeSource bs;
+        if (referenceGenerator.getBiomeSource() instanceof MergeableBiomeSource mbs) {
+            final BiomeSource loadedBiomeSource = loadedChunkGenerator.getBiomeSource();
+            bs = mbs.mergeWithBiomeSource(loadedBiomeSource);
+            if (mbs instanceof BCLBiomeSource bclBiomeSource && !(loadedBiomeSource instanceof BCLBiomeSource)) {
+                logCompat(
+                        "Enforce applying loaded external context for {}: loadedGenerator={}, loadedBiomeSource={}",
+                        dimensionKey.location(),
+                        describeObject(loadedChunkGenerator),
+                        describeObject(loadedBiomeSource)
+                );
+                Holder<DimensionType> dimensionType = access
+                        .registryOrThrow(Registries.DIMENSION_TYPE)
+                        .getHolderOrThrow(dimensionTypeKey);
+                bclBiomeSource.setExternalBiomeSourceContext(
+                        access,
+                        dimensionType,
+                        dimensionKey,
+                        loadedChunkGenerator
+                );
+            } else if (loadedBiomeSource instanceof BCLBiomeSource) {
+                logCompat(
+                        "Enforce preserving existing external context for {} because loaded biome source is already BCL: loadedBiomeSource={}",
+                        dimensionKey.location(),
+                        describeObject(loadedBiomeSource)
+                );
             }
+        } else {
+            bs = referenceGenerator.getBiomeSource();
+        }
+
+        if (loadedChunkGenerator instanceof NoiseGeneratorSettingsProvider noiseProvider) {
+            referenceGenerator = new BCLChunkGenerator(
+                    bs,
+                    noiseProvider.bclib_getNoiseGeneratorSettingHolders()
+            );
+            ((BCLChunkGenerator) referenceGenerator).knownDimensionKey = dimensionKey;
+            logCompat(
+                    "Enforce created BCL generator with loaded noise settings for {}: newGenerator={}, biomeSource={}",
+                    dimensionKey.location(),
+                    describeObject(referenceGenerator),
+                    describeObject(referenceGenerator.getBiomeSource())
+            );
+        } else if (bs != referenceGenerator.getBiomeSource()) {
+            referenceGenerator = new BCLChunkGenerator(
+                    bs,
+                    generatorSettings()
+            );
+            ((BCLChunkGenerator) referenceGenerator).knownDimensionKey = dimensionKey;
+            logCompat(
+                    "Enforce created BCL generator with reference noise settings for {}: newGenerator={}, biomeSource={}",
+                    dimensionKey.location(),
+                    describeObject(referenceGenerator),
+                    describeObject(referenceGenerator.getBiomeSource())
+            );
         }
 
         return LevelGenUtil.replaceGenerator(
@@ -186,6 +308,19 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
                 dimensionRegistry,
                 referenceGenerator
         );
+    }
+
+    private static void logCompat(String message, Object... args) {
+        if (Configs.MAIN_CONFIG.verboseLogging()) {
+            BCLib.LOGGER.info("[ChunkGeneratorCompat] " + message, args);
+        }
+    }
+
+    private static String describeObject(Object object) {
+        if (object == null) {
+            return "null";
+        }
+        return object.getClass().getName() + "@" + Integer.toHexString(System.identityHashCode(object));
     }
 
 
@@ -235,45 +370,4 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
         return NoiseRouterData.slideNetherLike(densityGetter, minY, maxY);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static void applyTerraBlenderRegionType(
-            Holder<NoiseGeneratorSettings> holder,
-            ResourceKey<LevelStem> dimensionKey,
-            BiomeSource biomeSource
-    ) {
-        if (!holder.isBound()) {
-            return;
-        }
-
-        String regionTypeName = null;
-        if (dimensionKey != null) {
-            if (dimensionKey.equals(LevelStem.NETHER)) {
-                regionTypeName = "NETHER";
-            } else if (dimensionKey.equals(LevelStem.OVERWORLD)) {
-                regionTypeName = "OVERWORLD";
-            }
-        }
-
-        if (regionTypeName == null && biomeSource instanceof BCLibNetherBiomeSource) {
-            regionTypeName = "NETHER";
-        }
-
-        if (regionTypeName == null) {
-            return;
-        }
-
-        try {
-            final Class<?> regionTypeClass = Class.forName("terrablender.api.RegionType");
-            final Enum regionType = Enum.valueOf((Class<Enum>) regionTypeClass.asSubclass(Enum.class), regionTypeName);
-            final Method setRegionType = holder.value().getClass().getMethod("setRegionType", regionTypeClass);
-            setRegionType.invoke(holder.value(), regionType);
-        } catch (ReflectiveOperationException e) {
-            BCLib.LOGGER.warning(
-                    "Unable to set TerraBlender region type {} for {}",
-                    regionTypeName,
-                    biomeSource.getClass().getName(),
-                    e
-            );
-        }
-    }
 }

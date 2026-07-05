@@ -6,22 +6,15 @@ import org.betterx.bclib.api.v2.generator.config.MapBuilderFunction;
 import org.betterx.bclib.api.v2.generator.map.MapStack;
 import org.betterx.bclib.api.v2.levelgen.biomes.BiomeAPI;
 import org.betterx.bclib.interfaces.BiomeMap;
-import org.betterx.worlds.together.world.event.WorldBootstrap;
 import org.betterx.worlds.together.biomesource.BiomeSourceWithConfig;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.Holder;
-import net.minecraft.core.Registry;
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.biome.Climate;
-
-import org.betterx.bclib.api.v2.generator.NetherBiomesHelper;
 
 import java.util.Map;
 
@@ -92,26 +85,6 @@ public class BCLibNetherBiomeSource extends BCLBiomeSource implements BiomeSourc
         return Map.of(defaultBiomeType(), this.biomePicker);
     }
 
-    @Override
-    protected BiomeAPI.BiomeType typeForUnknownBiome(ResourceKey<Biome> biomeKey, BiomeAPI.BiomeType defaultType) {
-        // Keep supporting the legacy helper path used by BCLib biome wrappers.
-        if (NetherBiomesHelper.canGenerateInNether(biomeKey)) {
-            return BiomeAPI.BiomeType.NETHER;
-        }
-
-        // Generic compatibility path: treat all biomes tagged as nether as nether biomes.
-        // This allows third-party mods to be discovered early in the BetterX biome source.
-        final RegistryAccess access = WorldBootstrap.getLastRegistryAccess();
-        if (access != null) {
-            final Registry<Biome> biomeRegistry = access.registryOrThrow(Registries.BIOME);
-            if (biomeRegistry.getHolder(biomeKey).map(holder -> holder.is(BiomeTags.IS_NETHER)).orElse(false)) {
-                return BiomeAPI.BiomeType.NETHER;
-            }
-        }
-
-        return super.typeForUnknownBiome(biomeKey, defaultType);
-    }
-
     public static void register() {
         // no-op; registration is handled via RegisterEvent
     }
@@ -129,14 +102,18 @@ public class BCLibNetherBiomeSource extends BCLBiomeSource implements BiomeSourc
     public Holder<Biome> getNoiseBiome(int biomeX, int biomeY, int biomeZ, Climate.Sampler var4) {
         if (!wasBound()) reloadBiomes(false);
 
-        if (biomeMap == null)
-            return this.possibleBiomes().stream().findFirst().get();
+        if (biomeMap == null) {
+            Holder<Biome> fallback = this.ownedPossibleBiomes().stream()
+                                        .findFirst()
+                                        .orElseGet(() -> this.possibleBiomes().stream().findFirst().get());
+            return applyExternalBiomeSource(fallback, biomeX, biomeY, biomeZ, var4);
+        }
 
         if ((biomeX & 63) == 0 && (biomeZ & 63) == 0) {
             biomeMap.clearCache();
         }
         BiomePicker.ActualBiome bb = biomeMap.getBiome(biomeX << 2, biomeY << 2, biomeZ << 2);
-        return bb.biome;
+        return applyExternalBiomeSource(bb.biome, biomeX, biomeY, biomeZ, var4);
     }
 
     @Override

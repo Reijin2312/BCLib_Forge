@@ -1,13 +1,13 @@
 package org.betterx.worlds.together.levelgen;
 
+import org.betterx.bclib.BCLib;
+import org.betterx.bclib.api.v2.generator.BCLChunkGenerator;
 import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiomeRegistry;
 import org.betterx.bclib.api.v2.levelgen.biomes.BiomeAPI;
-import org.betterx.worlds.together.WorldsTogether;
+import org.betterx.bclib.config.Configs;
 import org.betterx.worlds.together.biomesource.BiomeSourceWithConfig;
 import org.betterx.worlds.together.biomesource.ReloadableBiomeSource;
 import org.betterx.worlds.together.chunkgenerator.EnforceableChunkGenerator;
-import org.betterx.worlds.together.tag.v3.CommonBiomeTags;
-import org.betterx.worlds.together.world.event.WorldBootstrap;
 import org.betterx.worlds.together.worldPreset.TogetherWorldPreset;
 
 import net.minecraft.core.Holder;
@@ -15,17 +15,16 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.tags.BiomeTags;
-import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
+import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterList;
+import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.dimension.LevelStem;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 
-import java.lang.reflect.Method;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
 
 class BiomeRepairHelper {
     private Map<ResourceKey<LevelStem>, ChunkGenerator> vanillaDimensions = null;
@@ -43,6 +42,31 @@ class BiomeRepairHelper {
             ChunkGenerator referenceGenerator = dimensions.get(key);
             if (referenceGenerator instanceof EnforceableChunkGenerator enforcer) {
                 final ChunkGenerator loadedChunkGenerator = loadedStem.generator();
+                final ChunkGenerator externalChunkGenerator = getExternalBaseGenerator(registryAccess, key);
+                logCompat(
+                        "Repair dimension {}: referenceGenerator={}, referenceBiomeSource={}, loadedGenerator={}, loadedBiomeSource={}, externalGenerator={}, externalBiomeSource={}",
+                        key.location(),
+                        describeObject(referenceGenerator),
+                        describeObject(referenceGenerator.getBiomeSource()),
+                        describeObject(loadedChunkGenerator),
+                        describeObject(loadedChunkGenerator.getBiomeSource()),
+                        describeObject(externalChunkGenerator),
+                        externalChunkGenerator == null ? "null" : describeObject(externalChunkGenerator.getBiomeSource())
+                );
+                attachExternalBiomeSource(
+                        registryAccess,
+                        key,
+                        loadedStem,
+                        referenceGenerator,
+                        externalChunkGenerator
+                );
+                attachExternalBiomeSource(
+                        registryAccess,
+                        key,
+                        loadedStem,
+                        loadedChunkGenerator,
+                        externalChunkGenerator
+                );
 
                 // we ensure that all biomes with a dimensional Tag are properly added to the correct biome source
                 // using the correct type
@@ -85,138 +109,90 @@ class BiomeRepairHelper {
         return dimensionRegistry;
     }
 
+    private ChunkGenerator getExternalBaseGenerator(RegistryAccess registryAccess, ResourceKey<LevelStem> key) {
+        if (LevelStem.NETHER.equals(key)) {
+            Holder<NoiseGeneratorSettings> settings = registryAccess
+                    .registryOrThrow(Registries.NOISE_SETTINGS)
+                    .getHolderOrThrow(NoiseGeneratorSettings.NETHER);
+            Holder<MultiNoiseBiomeSourceParameterList> parameters = registryAccess
+                    .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                    .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER);
+            ChunkGenerator generator = new NoiseBasedChunkGenerator(
+                    MultiNoiseBiomeSource.createFromPreset(parameters),
+                    settings
+            );
+            logCompat(
+                    "Created external vanilla Nether generator: generator={}, biomeSource={}, settings={}",
+                    describeObject(generator),
+                    describeObject(generator.getBiomeSource()),
+                    settings.unwrapKey().map(ResourceKey::location).orElse(null)
+            );
+            return generator;
+        }
+
+        logCompat("No external base generator for {}", key.location());
+        return null;
+    }
+
+    private void attachExternalBiomeSource(
+            RegistryAccess registryAccess,
+            ResourceKey<LevelStem> key,
+            LevelStem loadedStem,
+            ChunkGenerator targetGenerator,
+            ChunkGenerator externalChunkGenerator
+    ) {
+        if (externalChunkGenerator == null || targetGenerator == externalChunkGenerator) {
+            logCompat(
+                    "Skipping attach for {}: targetGenerator={}, externalGenerator={}",
+                    key.location(),
+                    describeObject(targetGenerator),
+                    describeObject(externalChunkGenerator)
+            );
+            return;
+        }
+
+        if (targetGenerator instanceof BCLChunkGenerator bclGenerator) {
+            logCompat(
+                    "Attaching external biome source for {}: targetGenerator={}, targetBiomeSource={}, externalGenerator={}, externalBiomeSource={}",
+                    key.location(),
+                    describeObject(targetGenerator),
+                    describeObject(targetGenerator.getBiomeSource()),
+                    describeObject(externalChunkGenerator),
+                    describeObject(externalChunkGenerator.getBiomeSource())
+            );
+            bclGenerator.mergeExternalBiomeSource(
+                    registryAccess,
+                    key,
+                    loadedStem.type(),
+                    externalChunkGenerator
+            );
+        } else {
+            logCompat(
+                    "Target generator is not BCL, not attaching external source for {}: targetGenerator={}",
+                    key.location(),
+                    describeObject(targetGenerator)
+            );
+        }
+    }
+
+    private static void logCompat(String message, Object... args) {
+        if (Configs.MAIN_CONFIG.verboseLogging()) {
+            BCLib.LOGGER.info("[BiomeRepairCompat] " + message, args);
+        }
+    }
+
+    private static String describeObject(Object object) {
+        if (object == null) {
+            return "null";
+        }
+        return object.getClass().getName() + "@" + Integer.toHexString(System.identityHashCode(object));
+    }
+
     private void processBiomeTagsForDimension(ResourceKey<LevelStem> key) {
-        if (key.equals(LevelStem.NETHER)) {
-            preprocessBiomeTags(BiomeTags.IS_NETHER, BiomeAPI.BiomeType.NETHER);
-            preprocessTerraBlenderNetherBiomes();
-        } else if (key.equals(LevelStem.END)) {
-            preprocessBiomeTags(CommonBiomeTags.IS_END_HIGHLAND, BiomeAPI.BiomeType.END_LAND);
-            preprocessBiomeTags(CommonBiomeTags.IS_END_MIDLAND, BiomeAPI.BiomeType.END_LAND);
-            preprocessBiomeTags(CommonBiomeTags.IS_END_BARRENS, BiomeAPI.BiomeType.END_BARRENS);
-            preprocessBiomeTags(CommonBiomeTags.IS_SMALL_END_ISLAND, BiomeAPI.BiomeType.END_VOID);
-            preprocessBiomeTags(CommonBiomeTags.IS_END_CENTER, BiomeAPI.BiomeType.END_CENTER);
-            preprocessBiomeTags(BiomeTags.IS_END, BiomeAPI.BiomeType.END_LAND);
-            preprocessTerraBlenderEndBiomes();
-        }
-    }
-
-    private void preprocessBiomeTags(TagKey<Biome> tag, BiomeAPI.BiomeType targetType) {
-        if (WorldBootstrap.getLastRegistryAccess() != null) {
-            WorldBootstrap.getLastRegistryAccess()
-                          .registry(tag.registry())
-                          .map(r -> r.getTagOrEmpty(tag))
-                          .ifPresent(iter -> {
-                              for (Holder<Biome> biomeHolder : iter) {
-                                  BCLBiomeRegistry.registerIfUnknown(biomeHolder, targetType);
-                              }
-                          });
-            ;
-        }
-    }
-
-    private void preprocessTerraBlenderNetherBiomes() {
-        if (!WorldsTogether.RUNS_TERRABLENDER) {
-            return;
-        }
-        final RegistryAccess access = WorldBootstrap.getLastRegistryAccess();
-        if (access == null) {
-            return;
-        }
-        final Registry<Biome> biomes = access.registryOrThrow(Registries.BIOME);
-        try {
-            addTerraBlenderRegionBiomes(biomes, "NETHER", BiomeAPI.BiomeType.NETHER);
-        } catch (Throwable e) {
-            WorldsTogether.LOGGER.warning("Failed to import TerraBlender nether biomes: {}", e.toString());
-        }
-    }
-
-    private void preprocessTerraBlenderEndBiomes() {
-        if (!WorldsTogether.RUNS_TERRABLENDER) {
-            return;
-        }
-        final RegistryAccess access = WorldBootstrap.getLastRegistryAccess();
-        if (access == null) {
-            return;
-        }
-        final Registry<Biome> biomes = access.registryOrThrow(Registries.BIOME);
-        try {
-            final Class<?> endRegistryClass = Class.forName("terrablender.api.EndBiomeRegistry");
-            addTerraBlenderEndBiomeSet(endRegistryClass, "getHighlandsBiomes", biomes, BiomeAPI.BiomeType.END_LAND);
-            addTerraBlenderEndBiomeSet(endRegistryClass, "getMidlandsBiomes", biomes, BiomeAPI.BiomeType.END_LAND);
-            addTerraBlenderEndBiomeSet(endRegistryClass, "getEdgeBiomes", biomes, BiomeAPI.BiomeType.END_BARRENS);
-            addTerraBlenderEndBiomeSet(endRegistryClass, "getIslandBiomes", biomes, BiomeAPI.BiomeType.END_VOID);
-        } catch (Throwable e) {
-            WorldsTogether.LOGGER.warning("Failed to import TerraBlender end biomes: {}", e.toString());
-        }
-    }
-
-    private void addTerraBlenderRegionBiomes(
-            Registry<Biome> biomes,
-            String regionTypeName,
-            BiomeAPI.BiomeType intendedType
-    ) throws ReflectiveOperationException {
-        final Set<ResourceKey<Biome>> regionBiomes = new HashSet<>();
-
-        final Class<?> regionTypeClass = Class.forName("terrablender.api.RegionType");
-        final Class<? extends Enum> enumClass = regionTypeClass.asSubclass(Enum.class);
-        final Enum<?> regionType = Enum.valueOf(enumClass, regionTypeName);
-
-        final Class<?> regionsClass = Class.forName("terrablender.api.Regions");
-        final Method getRegions = regionsClass.getMethod("get", regionTypeClass);
-        final Object value = getRegions.invoke(null, regionType);
-        if (!(value instanceof Iterable<?> regions)) {
-            return;
-        }
-
-        for (Object region : regions) {
-            if (region == null) continue;
-
-            final Method addBiomes = region.getClass().getMethod("addBiomes", Registry.class, Consumer.class);
-            addBiomes.invoke(region, biomes, (Consumer<Object>) pairObject -> {
-                if (pairObject == null) return;
-                try {
-                    final Object keyObject = pairObject.getClass().getMethod("getSecond").invoke(pairObject);
-                    if (keyObject instanceof ResourceKey<?> key) {
-                        @SuppressWarnings("unchecked")
-                        final ResourceKey<Biome> biomeKey = (ResourceKey<Biome>) key;
-                        if (biomes.getHolder(biomeKey).isPresent()) {
-                            regionBiomes.add(biomeKey);
-                        }
-                    }
-                } catch (ReflectiveOperationException ignored) {
-                }
-            });
-        }
-
-        for (ResourceKey<Biome> biomeKey : regionBiomes) {
-            BCLBiomeRegistry.registerIfUnknown(biomeKey, intendedType);
-        }
-    }
-
-    private void addTerraBlenderEndBiomeSet(
-            Class<?> endRegistryClass,
-            String getterName,
-            Registry<Biome> biomes,
-            BiomeAPI.BiomeType intendedType
-    ) throws ReflectiveOperationException {
-        final Method listGetter = endRegistryClass.getMethod(getterName);
-        final Object value = listGetter.invoke(null);
-        if (!(value instanceof Iterable<?> wrappers)) {
-            return;
-        }
-
-        for (Object wrapper : wrappers) {
-            if (wrapper == null) continue;
-
-            final Object keyObject = wrapper.getClass().getMethod("data").invoke(wrapper);
-            if (keyObject instanceof ResourceKey<?> key) {
-                @SuppressWarnings("unchecked")
-                final ResourceKey<Biome> biomeKey = (ResourceKey<Biome>) key;
-                if (biomes.getHolder(biomeKey).isPresent()) {
-                    BCLBiomeRegistry.registerIfUnknown(biomeKey, intendedType);
-                }
-            }
-        }
+        // External biome engines (TerraBlender, Biolith and mods built on top of them)
+        // own their placement. Importing tagged/region biomes into BCLBiomeRegistry makes
+        // BCL pick them with BCL weights and can also pull technical or cave biomes into
+        // Nether/End maps. Keep BCL registration limited to actual BCL biome entries.
     }
 
     private void registerAllBiomesFromVanillaDimension(

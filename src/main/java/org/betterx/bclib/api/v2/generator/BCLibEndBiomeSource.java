@@ -1,26 +1,21 @@
 package org.betterx.bclib.api.v2.generator;
 
 import org.betterx.bclib.BCLib;
+import org.betterx.bclib.api.v2.generator.compat.EndlessBiomesCompat;
+import org.betterx.bclib.api.v2.generator.compat.UnusualEndCompat;
 import org.betterx.bclib.api.v2.generator.config.BCLEndBiomeSourceConfig;
 import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiome;
 import org.betterx.bclib.api.v2.levelgen.biomes.BiomeAPI;
 import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.interfaces.BiomeMap;
-import org.betterx.worlds.together.WorldsTogether;
 import org.betterx.worlds.together.biomesource.BiomeSourceWithConfig;
-import org.betterx.worlds.together.tag.v3.CommonBiomeTags;
-import org.betterx.worlds.together.world.event.WorldBootstrap;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
-import net.minecraft.core.Registry;
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.biome.Biomes;
@@ -28,11 +23,8 @@ import net.minecraft.world.level.biome.Climate;
 import net.minecraft.world.level.levelgen.DensityFunction;
 
 import java.awt.*;
-import java.lang.reflect.Method;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 
 import net.minecraftforge.eventbus.api.EventPriority;
@@ -61,12 +53,6 @@ public class BCLibEndBiomeSource extends BCLBiomeSource implements BiomeSourceWi
                     instance.stable(BCLibEndBiomeSource::new)
             )
     );
-
-    private static boolean terraBlenderEndCacheLoaded = false;
-    private static final Set<ResourceKey<Biome>> TB_END_HIGHLANDS = new HashSet<>();
-    private static final Set<ResourceKey<Biome>> TB_END_MIDLANDS = new HashSet<>();
-    private static final Set<ResourceKey<Biome>> TB_END_EDGE = new HashSet<>();
-    private static final Set<ResourceKey<Biome>> TB_END_ISLANDS = new HashSet<>();
 
     private final Point pos;
     private BiomeMap mapLand;
@@ -119,6 +105,9 @@ public class BCLibEndBiomeSource extends BCLBiomeSource implements BiomeSourceWi
 
     @Override
     protected Map<BiomeAPI.BiomeType, BiomePicker> createFreshPickerMap() {
+        EndlessBiomesCompat.registerBCLBiomes();
+        UnusualEndCompat.registerBCLBiomes();
+
         this.deciders = BiomeDecider.DECIDERS.stream()
                                              .filter(d -> d.canProvideFor(this))
                                              .map(d -> d.createInstance(this))
@@ -151,126 +140,6 @@ public class BCLibEndBiomeSource extends BCLBiomeSource implements BiomeSourceWi
         }
 
         return super.addToPicker(bclBiome, type, picker);
-    }
-
-    @Override
-    protected BiomeAPI.BiomeType typeForUnknownBiome(ResourceKey<Biome> biomeKey, BiomeAPI.BiomeType defaultType) {
-        if (TheEndBiomesHelper.canGenerateAsMainIslandBiome(biomeKey)) {
-            return BiomeAPI.BiomeType.END_CENTER;
-        } else if (TheEndBiomesHelper.canGenerateAsHighlandsBiome(biomeKey)) {
-            if (!config.withVoidBiomes) return BiomeAPI.BiomeType.END_VOID;
-            return BiomeAPI.BiomeType.END_LAND;
-        } else if (TheEndBiomesHelper.canGenerateAsEndBarrens(biomeKey)) {
-            return BiomeAPI.BiomeType.END_BARRENS;
-        } else if (TheEndBiomesHelper.canGenerateAsSmallIslandsBiome(biomeKey)) {
-            return BiomeAPI.BiomeType.END_VOID;
-        } else if (TheEndBiomesHelper.canGenerateAsEndMidlands(biomeKey)) {
-            return BiomeAPI.BiomeType.END_LAND;
-        }
-
-        final RegistryAccess access = WorldBootstrap.getLastRegistryAccess();
-        if (access != null) {
-            final Registry<Biome> biomeRegistry = access.registryOrThrow(Registries.BIOME);
-            final Holder<Biome> holder = biomeRegistry.getHolder(biomeKey).orElse(null);
-            if (holder != null) {
-                if (holder.is(CommonBiomeTags.IS_END_CENTER)) {
-                    return BiomeAPI.BiomeType.END_CENTER;
-                } else if (holder.is(CommonBiomeTags.IS_SMALL_END_ISLAND)) {
-                    return BiomeAPI.BiomeType.END_VOID;
-                } else if (holder.is(CommonBiomeTags.IS_END_BARRENS)) {
-                    return BiomeAPI.BiomeType.END_BARRENS;
-                } else if (holder.is(CommonBiomeTags.IS_END_HIGHLAND)) {
-                    if (!config.withVoidBiomes) return BiomeAPI.BiomeType.END_VOID;
-                    return BiomeAPI.BiomeType.END_LAND;
-                } else if (holder.is(CommonBiomeTags.IS_END_MIDLAND)) {
-                    return BiomeAPI.BiomeType.END_LAND;
-                }
-            }
-        }
-
-        if (isTerraBlenderEndHighlandsBiome(biomeKey)) {
-            if (!config.withVoidBiomes) return BiomeAPI.BiomeType.END_VOID;
-            return BiomeAPI.BiomeType.END_LAND;
-        } else if (isTerraBlenderEndMidlandsBiome(biomeKey)) {
-            return BiomeAPI.BiomeType.END_LAND;
-        } else if (isTerraBlenderEndEdgeBiome(biomeKey)) {
-            return BiomeAPI.BiomeType.END_BARRENS;
-        } else if (isTerraBlenderEndIslandBiome(biomeKey)) {
-            return BiomeAPI.BiomeType.END_VOID;
-        }
-
-        if (access != null) {
-            final Registry<Biome> biomeRegistry = access.registryOrThrow(Registries.BIOME);
-            if (biomeRegistry.getHolder(biomeKey).map(holder -> holder.is(BiomeTags.IS_END)).orElse(false)) {
-                return BiomeAPI.BiomeType.END_LAND;
-            }
-        }
-
-        return super.typeForUnknownBiome(biomeKey, defaultType);
-    }
-
-    private static boolean isTerraBlenderEndHighlandsBiome(ResourceKey<Biome> biomeKey) {
-        ensureTerraBlenderEndCache();
-        return TB_END_HIGHLANDS.contains(biomeKey);
-    }
-
-    private static boolean isTerraBlenderEndMidlandsBiome(ResourceKey<Biome> biomeKey) {
-        ensureTerraBlenderEndCache();
-        return TB_END_MIDLANDS.contains(biomeKey);
-    }
-
-    private static boolean isTerraBlenderEndEdgeBiome(ResourceKey<Biome> biomeKey) {
-        ensureTerraBlenderEndCache();
-        return TB_END_EDGE.contains(biomeKey);
-    }
-
-    private static boolean isTerraBlenderEndIslandBiome(ResourceKey<Biome> biomeKey) {
-        ensureTerraBlenderEndCache();
-        return TB_END_ISLANDS.contains(biomeKey);
-    }
-
-    private static synchronized void ensureTerraBlenderEndCache() {
-        if (terraBlenderEndCacheLoaded) {
-            return;
-        }
-        terraBlenderEndCacheLoaded = true;
-
-        if (!WorldsTogether.RUNS_TERRABLENDER) {
-            return;
-        }
-
-        try {
-            final Class<?> endRegistryClass = Class.forName("terrablender.api.EndBiomeRegistry");
-            collectTerraBlenderEndBiomeSet(endRegistryClass, "getHighlandsBiomes", TB_END_HIGHLANDS);
-            collectTerraBlenderEndBiomeSet(endRegistryClass, "getMidlandsBiomes", TB_END_MIDLANDS);
-            collectTerraBlenderEndBiomeSet(endRegistryClass, "getEdgeBiomes", TB_END_EDGE);
-            collectTerraBlenderEndBiomeSet(endRegistryClass, "getIslandBiomes", TB_END_ISLANDS);
-        } catch (Throwable e) {
-            BCLib.LOGGER.warning("Unable to read TerraBlender end biome registry: {}", e.toString());
-        }
-    }
-
-    private static void collectTerraBlenderEndBiomeSet(
-            Class<?> endRegistryClass,
-            String getterName,
-            Set<ResourceKey<Biome>> target
-    ) throws ReflectiveOperationException {
-        final Method getter = endRegistryClass.getMethod(getterName);
-        final Object value = getter.invoke(null);
-        if (!(value instanceof Iterable<?> wrappers)) {
-            return;
-        }
-
-        for (Object wrapper : wrappers) {
-            if (wrapper == null) continue;
-
-            final Object keyObject = wrapper.getClass().getMethod("data").invoke(wrapper);
-            if (keyObject instanceof ResourceKey<?> key) {
-                @SuppressWarnings("unchecked")
-                final ResourceKey<Biome> biomeKey = (ResourceKey<Biome>) key;
-                target.add(biomeKey);
-            }
-        }
     }
 
     @Override
@@ -361,8 +230,12 @@ public class BCLibEndBiomeSource extends BCLBiomeSource implements BiomeSourceWi
     public Holder<Biome> getNoiseBiome(int biomeX, int biomeY, int biomeZ, Climate.@NotNull Sampler sampler) {
         if (!wasBound()) reloadBiomes(false);
 
-        if (mapLand == null || mapVoid == null || mapCenter == null || mapBarrens == null)
-            return this.possibleBiomes().stream().findFirst().orElseThrow();
+        if (mapLand == null || mapVoid == null || mapCenter == null || mapBarrens == null) {
+            Holder<Biome> fallback = this.ownedPossibleBiomes().stream()
+                                        .findFirst()
+                                        .orElseGet(() -> this.possibleBiomes().stream().findFirst().orElseThrow());
+            return applyExternalBiomeSource(fallback, biomeX, biomeY, biomeZ, sampler);
+        }
 
         int posX = QuartPos.toBlock(biomeX);
         int posY = QuartPos.toBlock(biomeY);
@@ -416,14 +289,21 @@ public class BCLibEndBiomeSource extends BCLBiomeSource implements BiomeSourceWi
         for (BiomeDecider decider : deciders) {
             if (decider.canProvideBiome(suggestedType)) {
                 result = decider.provideBiome(suggestedType, posX, posY, posZ);
-                if (result != null) return result.biome;
+                if (result != null) return applyExternalBiomeSource(result.biome, biomeX, biomeY, biomeZ, sampler);
             }
         }
 
-        if (suggestedType.is(BiomeAPI.BiomeType.END_CENTER)) return mapCenter.getBiome(posX, posY, posZ).biome;
-        if (suggestedType.is(BiomeAPI.BiomeType.END_VOID)) return mapVoid.getBiome(posX, posY, posZ).biome;
-        if (suggestedType.is(BiomeAPI.BiomeType.END_BARRENS)) return mapBarrens.getBiome(posX, posY, posZ).biome;
-        return mapLand.getBiome(posX, posY, posZ).biome;
+        Holder<Biome> biome;
+        if (suggestedType.is(BiomeAPI.BiomeType.END_CENTER)) {
+            biome = mapCenter.getBiome(posX, posY, posZ).biome;
+        } else if (suggestedType.is(BiomeAPI.BiomeType.END_VOID)) {
+            biome = mapVoid.getBiome(posX, posY, posZ).biome;
+        } else if (suggestedType.is(BiomeAPI.BiomeType.END_BARRENS)) {
+            biome = mapBarrens.getBiome(posX, posY, posZ).biome;
+        } else {
+            biome = mapLand.getBiome(posX, posY, posZ).biome;
+        }
+        return applyExternalBiomeSource(biome, biomeX, biomeY, biomeZ, sampler);
     }
 
 

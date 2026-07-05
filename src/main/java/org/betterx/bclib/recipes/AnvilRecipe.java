@@ -6,7 +6,6 @@ import org.betterx.bclib.util.ItemUtil;
 import org.betterx.worlds.together.tag.v3.CommonItemTags;
 import org.betterx.worlds.together.world.event.WorldBootstrap;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.Registry;
@@ -144,7 +143,7 @@ public class AnvilRecipe implements Recipe<Container>, UnknownReceipBookCategory
                 return ItemStack.EMPTY;
             }
         }
-        return this.assemble(craftingInventory, Minecraft.getInstance().level.registryAccess());
+        return this.assemble(craftingInventory, player.level().registryAccess());
     }
 
     public boolean checkHammerDurability(Container craftingInventory, Player player) {

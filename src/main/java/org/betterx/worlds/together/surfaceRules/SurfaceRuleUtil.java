@@ -1,10 +1,13 @@
 package org.betterx.worlds.together.surfaceRules;
 
 import org.betterx.bclib.BCLib;
+import org.betterx.bclib.api.v2.generator.BCLBiomeSource;
 import org.betterx.bclib.config.Configs;
 import org.betterx.worlds.together.chunkgenerator.InjectableSurfaceRules;
+import org.betterx.worlds.together.surfaceRules.compat.ExternalSurfaceRuleCompat;
 import org.betterx.worlds.together.world.event.WorldBootstrap;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -15,6 +18,7 @@ import net.minecraft.world.level.dimension.LevelStem;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.SurfaceRules;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -66,16 +70,22 @@ public class SurfaceRuleUtil {
                     .collect(Collectors.toList());
             if (additionalRules.isEmpty()) return null;
 
-            // when we are in the nether, we want to keep the nether roof and floor rules in the beginning of the sequence
-            // we will add our rules whne the first biome test sequence is found
+            // Keep nether roof/floor guards at the beginning, then place BCL biome rules before
+            // vanilla or external biome-specific surface rules. Late catch-all rules must remain last.
             if (dimensionKey.equals(LevelStem.NETHER)) {
                 final List<SurfaceRules.RuleSource> combined = new ArrayList<>(existingSequence.size() + additionalRules.size());
+                boolean inserted = false;
                 for (SurfaceRules.RuleSource rule : existingSequence) {
-                    if (rule instanceof SurfaceRules.TestRuleSource testRule
+                    if (!inserted
+                            && rule instanceof SurfaceRules.TestRuleSource testRule
                             && testRule.ifTrue() instanceof SurfaceRules.BiomeConditionSource) {
                         combined.addAll(additionalRules);
+                        inserted = true;
                     }
                     combined.add(rule);
+                }
+                if (!inserted) {
+                    combined.addAll(additionalRules);
                 }
                 additionalRules = combined;
             } else {
@@ -99,12 +109,29 @@ public class SurfaceRuleUtil {
     ) {
         if (((Object) noiseSettings) instanceof SurfaceRuleProvider srp) {
             SurfaceRules.RuleSource originalRules = srp.bclib_getOriginalSurfaceRules();
+            List<Biome> biomesWithBCLRules = loadedBiomeSource instanceof BCLBiomeSource bclBiomeSource
+                    ? bclBiomeSource.ownedPossibleBiomes().stream().map(Holder::value).toList()
+                    : loadedBiomeSource.possibleBiomes().stream().map(Holder::value).toList();
+            List<SurfaceRules.RuleSource> additionalRules = new ArrayList<>(getRulesForBiomes(biomesWithBCLRules));
+            additionalRules.addAll(ExternalSurfaceRuleCompat.getRules(dimensionKey, loadedBiomeSource));
             srp.bclib_overwriteSurfaceRules(mergeSurfaceRules(
                     dimensionKey,
                     originalRules,
                     loadedBiomeSource,
-                    getRulesForBiomes(loadedBiomeSource.possibleBiomes().stream().map(h -> h.value()).toList())
+                    additionalRules
             ));
+            invalidateTerraBlenderSurfaceRuleCache(noiseSettings);
+        }
+    }
+
+    private static void invalidateTerraBlenderSurfaceRuleCache(NoiseGeneratorSettings noiseSettings) {
+        try {
+            Field cache = noiseSettings.getClass().getDeclaredField("namespacedSurfaceRuleSource");
+            cache.setAccessible(true);
+            cache.set(noiseSettings, null);
+        } catch (NoSuchFieldException ignored) {
+        } catch (ReflectiveOperationException e) {
+            BCLib.LOGGER.warning("Unable to invalidate TerraBlender surface rule cache", e);
         }
     }
 
