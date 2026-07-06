@@ -8,7 +8,7 @@
     "BoneMealItemMixin", "ChunkGeneratorAccessor", "ChunkGeneratorMixin", "ChunkGeneratorsMixin",
     "ComposterBlockAccessor", "CraftingMenuMixin", "DiggerItemMixin", "EnchantingTableBlockMixin", "ItemStackMixin",
     "LayerLightSectionStorageMixin", "LootPoolMixin", "MissingDimensionFixMixin", "MobSpawnSettingsAccessor",
-    "NoiseBasedChunkGeneratorMixin", "PistonBaseBlockMixin", "PoiTypeMixin", "PortalShapeMixin",
+    "NoiseBasedChunkGeneratorMixin", "PistonBaseBlockMixin", "PlacedFeatureMixin", "PoiTypeMixin", "PortalShapeMixin",
     "PotionBrewingAccessor", "RecipeManagerMixin", "RecipeMixin", "RegistryDataLoaderMixin", "ServerLevelMixin",
     "ShovelItemAccessor", "SurfaceRulesContextAccessor", "TheEndBiomesMixin", "V2551Mixin", "V2832Mixin",
     "WorldGenRegionMixin", "boat.BoatItemMixin", "boat.BoatMixin", "boat.ChestBoatMixin", "elytra.LivingEntityMixin",
