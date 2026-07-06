@@ -2,6 +2,7 @@ package org.betterx.bclib.api.v2.levelgen.biomes;
 
 import org.betterx.bclib.BCLib;
 import org.betterx.bclib.api.v3.levelgen.features.BCLFeature;
+import org.betterx.bclib.api.v3.levelgen.features.FeatureConfigAPI;
 import org.betterx.bclib.interfaces.SurfaceMaterialProvider;
 import org.betterx.bclib.mixin.common.BiomeGenerationSettingsAccessor;
 import org.betterx.bclib.mixin.common.MobSpawnSettingsAccessor;
@@ -697,6 +698,9 @@ public class BiomeAPI {
             Holder<Biome> biome,
             BCLFeature feature
     ) {
+        if (!FeatureConfigAPI.isFeatureEnabled(feature)) {
+            return;
+        }
         addBiomeFeature(biome, feature.getDecoration(), feature.getPlacedFeature());
     }
 

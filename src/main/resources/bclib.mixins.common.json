@@ -10,7 +10,7 @@
     "ComposterBlockAccessor", "CraftingMenuMixin", "DiggerItemMixin", "EnchantingTableBlockMixin", "ItemStackMixin",
     "FireBlockAccessor", "LayerLightSectionStorageMixin", "LootPoolInvoker", "LootPoolMixin",
     "MissingDimensionFixMixin", "MobSpawnSettingsAccessor", "NoiseBasedChunkGeneratorMixin",
-    "NoiseRouterDataAccessor", "PistonBaseBlockMixin", "PoiTypeMixin", "PoiTypesAccessor", "PortalShapeMixin",
+    "NoiseRouterDataAccessor", "PistonBaseBlockMixin", "PlacedFeatureMixin", "PoiTypeMixin", "PoiTypesAccessor", "PortalShapeMixin",
     "PotionBrewingAccessor", "RandomizableContainerBlockEntityAccessor", "RecipeManagerMixin", "RecipeMixin",
     "RegistryDataLoaderMixin", "ServerLevelMixin", "ShovelItemAccessor", "SurfaceRulesContextAccessor",
     "V2551Mixin", "V2832Mixin",

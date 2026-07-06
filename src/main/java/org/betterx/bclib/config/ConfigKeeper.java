@@ -60,7 +60,7 @@ public final class ConfigKeeper {
         String kk = key.first + key.second;
         for (var entry : json.entrySet()) {
             final Pair<String, String> otherKey = ConfigKey.realKey(entry.getKey());
-            if (kk.equals(entry)) return new Pair<>(entry.getValue(), otherKey);
+            if (kk.equals(otherKey.first + otherKey.second)) return new Pair<>(entry.getValue(), otherKey);
         }
 
 //        for (var entry : json.entrySet()) {

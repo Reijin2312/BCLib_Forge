@@ -3,6 +3,7 @@ package org.betterx.bclib.api.v2.levelgen.biomes;
 import org.betterx.bclib.api.v2.levelgen.structures.BCLStructure;
 import org.betterx.bclib.api.v2.levelgen.surface.SurfaceRuleBuilder;
 import org.betterx.bclib.api.v3.levelgen.features.BCLFeature;
+import org.betterx.bclib.api.v3.levelgen.features.FeatureConfigAPI;
 import org.betterx.bclib.entity.BCLEntityWrapper;
 import org.betterx.bclib.mixin.common.BiomeGenerationSettingsAccessor;
 import org.betterx.bclib.util.CollectionsUtil;
@@ -677,6 +678,9 @@ public class BCLBiomeBuilder {
      * @return same {@link BCLBiomeBuilder} instance.
      */
     public BCLBiomeBuilder feature(BCLFeature feature) {
+        if (!FeatureConfigAPI.isFeatureEnabled(feature)) {
+            return this;
+        }
         return feature(feature.decoration, feature.placedFeature);
     }
 
