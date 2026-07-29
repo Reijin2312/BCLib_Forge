@@ -112,6 +112,22 @@ public class BCLibEndBiomeSource extends BCLBiomeSource implements BiomeSourceWi
         this.endCenterBiomePicker = new BiomePicker();
         this.endBarrensBiomePicker = new BiomePicker();
 
+        // Vanilla End biomes are part of the BCL layout itself. The external source is only
+        // allowed to override BCL placement with third-party biomes, so these must remain in
+        // their typed pickers instead of relying on the external TheEndBiomeSource.
+        if (BiomeAPI.END_HIGHLANDS != null) {
+            this.endLandBiomePicker.addBiome(BiomeAPI.END_HIGHLANDS);
+        }
+        if (BiomeAPI.THE_END != null) {
+            this.endCenterBiomePicker.addBiome(BiomeAPI.THE_END);
+        }
+        if (BiomeAPI.END_BARRENS != null) {
+            this.endBarrensBiomePicker.addBiome(BiomeAPI.END_BARRENS);
+        }
+        if (config.withVoidBiomes && BiomeAPI.SMALL_END_ISLANDS != null) {
+            this.endVoidBiomePicker.addBiome(BiomeAPI.SMALL_END_ISLANDS);
+        }
+
         return Map.of(
                 BiomeAPI.BiomeType.END_LAND, endLandBiomePicker,
                 BiomeAPI.BiomeType.END_VOID, endVoidBiomePicker,

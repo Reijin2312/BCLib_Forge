@@ -54,7 +54,7 @@ public class BiomePicker {
     }
 
     private boolean isAllowed(BCLBiome b) {
-        if (!b.isPickable()) {
+        if (b == null || !b.isPickable()) {
             return false;
         }
         if (allowedBiomes == null) return true;
@@ -68,7 +68,7 @@ public class BiomePicker {
     }
 
     public void addBiome(BCLBiome biome) {
-        if (!biome.isPickable()) {
+        if (biome == null || !biome.isPickable()) {
             return;
         }
         biomes.add(create(biome));
