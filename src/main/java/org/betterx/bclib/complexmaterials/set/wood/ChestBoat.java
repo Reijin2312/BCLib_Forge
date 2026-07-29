@@ -4,6 +4,7 @@ import org.betterx.bclib.complexmaterials.ComplexMaterial;
 import org.betterx.bclib.complexmaterials.WoodenComplexMaterial;
 import org.betterx.bclib.complexmaterials.entry.BlockEntry;
 import org.betterx.bclib.complexmaterials.entry.ItemEntry;
+import org.betterx.bclib.complexmaterials.entry.MaterialSlot;
 import org.betterx.bclib.complexmaterials.entry.SimpleMaterialSlot;
 import org.betterx.bclib.recipes.BCLRecipeBuilder;
 import org.betterx.worlds.together.tag.v3.CommonItemTags;
@@ -21,8 +22,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class ChestBoat extends SimpleMaterialSlot<WoodenComplexMaterial> {
+    private final MaterialSlot<WoodenComplexMaterial> boatSlot;
+
     public ChestBoat() {
-        super("chest_boat");
+        this("chest_boat", WoodSlots.BOAT);
+    }
+
+    public ChestBoat(String suffix, MaterialSlot<WoodenComplexMaterial> boatSlot) {
+        super(suffix);
+        this.boatSlot = boatSlot;
     }
 
     @Override
@@ -47,7 +55,7 @@ public class ChestBoat extends SimpleMaterialSlot<WoodenComplexMaterial> {
 
     @Override
     protected @Nullable void makeRecipe(ComplexMaterial parentMaterial, ResourceLocation id) {
-        makeChestBoatRecipe(id, parentMaterial.getItem(WoodSlots.BOAT), parentMaterial.getItem(WoodSlots.CHEST_BOAT));
+        makeChestBoatRecipe(id, parentMaterial.getItem(boatSlot), parentMaterial.getItem(suffix));
     }
 
     @Override

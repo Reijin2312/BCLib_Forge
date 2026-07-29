@@ -11,6 +11,7 @@ public class ExternalBiomeSourceAdapters {
         final List<Holder<Biome>> directMultiNoiseBiomes = new ArrayList<>();
         directMultiNoiseBiomes.addAll(NetherExorcismRebornBiomeSourceCompat.prepare(context));
         directMultiNoiseBiomes.addAll(IncisionBiomeSourceCompat.prepare(context));
+        directMultiNoiseBiomes.addAll(MountainsPoemBiomeSourceCompat.prepare(context));
         TerraBlenderBiomeSourceCompat.prepare(context, directMultiNoiseBiomes);
         ElysiumBiomeSourceCompat.prepare(context);
     }

@@ -1,6 +1,7 @@
 package org.betterx.bclib.api.v2.generator;
 
 import org.betterx.bclib.BCLib;
+import org.betterx.bclib.api.v2.generator.compat.BlueprintEndBiomeCompat;
 import org.betterx.bclib.api.v2.generator.compat.TerraBlenderNoiseSettingsCompat;
 import org.betterx.bclib.api.v2.levelgen.LevelGenUtil;
 import org.betterx.bclib.config.Configs;
@@ -122,7 +123,8 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
         if (knownDimensionKey != null && BlueprintBiomeSourceCompat.wraps(getBiomeSource(), initialBiomeSource)) {
             BiomeSource refreshedSource = BlueprintBiomeSourceCompat.refreshWrappedSource(
                     getBiomeSource(),
-                    knownDimensionKey
+                    knownDimensionKey,
+                    BlueprintEndBiomeCompat.createMatchExpansions(initialBiomeSource)
             );
             if (refreshedSource != getBiomeSource() && this instanceof ChunkGeneratorAccessor acc) {
                 acc.bcl_setBiomeSource(refreshedSource);
@@ -148,6 +150,14 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
     @Override
     public void restoreInitialBiomeSource(ResourceKey<LevelStem> dimensionKey) {
         if (BlueprintBiomeSourceCompat.wraps(getBiomeSource(), initialBiomeSource)) {
+            BiomeSource refreshedSource = BlueprintBiomeSourceCompat.refreshWrappedSource(
+                    getBiomeSource(),
+                    dimensionKey,
+                    BlueprintEndBiomeCompat.createMatchExpansions(initialBiomeSource)
+            );
+            if (refreshedSource != getBiomeSource() && this instanceof ChunkGeneratorAccessor acc) {
+                acc.bcl_setBiomeSource(refreshedSource);
+            }
             logCompat(
                     "Keeping Blueprint modded biome source for {}: wrapper={}, original={}",
                     dimensionKey.location(),

@@ -16,6 +16,7 @@ public class ExternalSurfaceRuleCompat {
         List<SurfaceRules.RuleSource> rules = new ArrayList<>();
         rules.addAll(NetherExorcismRebornSurfaceRuleCompat.getRules(dimensionKey, loadedBiomeSource));
         rules.addAll(IncisionSurfaceRuleCompat.getRules(dimensionKey, loadedBiomeSource));
+        rules.addAll(MountainsPoemSurfaceRuleCompat.getRules(dimensionKey, loadedBiomeSource));
         return rules;
     }
 }
