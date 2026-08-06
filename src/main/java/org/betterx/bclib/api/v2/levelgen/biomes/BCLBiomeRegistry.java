@@ -98,6 +98,20 @@ public class BCLBiomeRegistry {
         registerForDatagen(biome);
     }
 
+    /**
+     * Makes an existing biome wrapper visible to biome sources before the dynamic BCL biome
+     * registry is available. This is required for vanilla dimension biomes: structure-set
+     * filtering reads {@code BiomeSource.possibleBiomes()} while the world is being created,
+     * before the datapack bootstrap has necessarily copied those wrappers into the dynamic
+     * registry.
+     */
+    @ApiStatus.Internal
+    public static synchronized void registerBuiltinIfUnknown(BCLBiome biome) {
+        if (biome != null && !BUILTIN_BCL_BIOMES.containsKey(biome.getID())) {
+            registerForDatagen(biome);
+        }
+    }
+
     public static BCLBiome registerIfUnknown(Holder<Biome> biomeHolder, @NotNull BiomeAPI.BiomeType intendedType) {
         if (biomeHolder == null) return null;
         return registerIfUnknown(biomeHolder.unwrapKey().orElse(null), intendedType);

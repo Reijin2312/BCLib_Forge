@@ -5,6 +5,7 @@ import org.betterx.bclib.api.v2.generator.compat.EndlessBiomesCompat;
 import org.betterx.bclib.api.v2.generator.compat.UnusualEndCompat;
 import org.betterx.bclib.api.v2.generator.config.BCLEndBiomeSourceConfig;
 import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiome;
+import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiomeRegistry;
 import org.betterx.bclib.api.v2.levelgen.biomes.BiomeAPI;
 import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.interfaces.BiomeMap;
@@ -107,6 +108,7 @@ public class BCLibEndBiomeSource extends BCLBiomeSource implements BiomeSourceWi
     protected Map<BiomeAPI.BiomeType, BiomePicker> createFreshPickerMap() {
         EndlessBiomesCompat.registerBCLBiomes();
         UnusualEndCompat.registerBCLBiomes();
+        ensureVanillaEndBiomesRegistered();
 
         this.deciders = BiomeDecider.DECIDERS.stream()
                                              .filter(d -> d.canProvideFor(this))
@@ -118,28 +120,20 @@ public class BCLibEndBiomeSource extends BCLBiomeSource implements BiomeSourceWi
         this.endCenterBiomePicker = new BiomePicker();
         this.endBarrensBiomePicker = new BiomePicker();
 
-        // Vanilla End biomes are part of the BCL layout itself. The external source is only
-        // allowed to override BCL placement with third-party biomes, so these must remain in
-        // their typed pickers instead of relying on the external TheEndBiomeSource.
-        if (BiomeAPI.END_HIGHLANDS != null) {
-            this.endLandBiomePicker.addBiome(BiomeAPI.END_HIGHLANDS);
-        }
-        if (BiomeAPI.THE_END != null) {
-            this.endCenterBiomePicker.addBiome(BiomeAPI.THE_END);
-        }
-        if (BiomeAPI.END_BARRENS != null) {
-            this.endBarrensBiomePicker.addBiome(BiomeAPI.END_BARRENS);
-        }
-        if (config.withVoidBiomes && BiomeAPI.SMALL_END_ISLANDS != null) {
-            this.endVoidBiomePicker.addBiome(BiomeAPI.SMALL_END_ISLANDS);
-        }
-
         return Map.of(
                 BiomeAPI.BiomeType.END_LAND, endLandBiomePicker,
                 BiomeAPI.BiomeType.END_VOID, endVoidBiomePicker,
                 BiomeAPI.BiomeType.END_CENTER, endCenterBiomePicker,
                 BiomeAPI.BiomeType.END_BARRENS, endBarrensBiomePicker
         );
+    }
+
+    private static void ensureVanillaEndBiomesRegistered() {
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.THE_END);
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.END_HIGHLANDS);
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.END_MIDLANDS);
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.END_BARRENS);
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.SMALL_END_ISLANDS);
     }
 
     protected boolean addToPicker(BCLBiome bclBiome, BiomeAPI.BiomeType type, BiomePicker picker) {

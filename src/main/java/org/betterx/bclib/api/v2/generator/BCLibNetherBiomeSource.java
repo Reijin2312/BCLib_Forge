@@ -4,6 +4,7 @@ import org.betterx.bclib.BCLib;
 import org.betterx.bclib.api.v2.generator.config.BCLNetherBiomeSourceConfig;
 import org.betterx.bclib.api.v2.generator.config.MapBuilderFunction;
 import org.betterx.bclib.api.v2.generator.map.MapStack;
+import org.betterx.bclib.api.v2.levelgen.biomes.BCLBiomeRegistry;
 import org.betterx.bclib.api.v2.levelgen.biomes.BiomeAPI;
 import org.betterx.bclib.interfaces.BiomeMap;
 import org.betterx.worlds.together.biomesource.BiomeSourceWithConfig;
@@ -81,8 +82,23 @@ public class BCLibNetherBiomeSource extends BCLBiomeSource implements BiomeSourc
 
     @Override
     protected Map<BiomeAPI.BiomeType, BiomePicker> createFreshPickerMap() {
+        // BiomeAPI's vanilla wrappers are registered from static field initializers. Merely using
+        // BiomeAPI.BiomeType does not initialize the outer BiomeAPI class, so a Nether source can
+        // otherwise build its picker before those wrappers exist. In that case only modded biomes
+        // are owned by this source; the vanilla MultiNoise source cannot be used as a replacement
+        // because it returns a vanilla biome at every coordinate and would hide BetterNether.
+        // Touch the five wrappers explicitly before populateBiomePickers scans the registry.
+        ensureVanillaNetherBiomesRegistered();
         this.biomePicker = new BiomePicker();
         return Map.of(defaultBiomeType(), this.biomePicker);
+    }
+
+    private static void ensureVanillaNetherBiomesRegistered() {
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.NETHER_WASTES_BIOME);
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.SOUL_SAND_VALLEY_BIOME);
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.CRIMSON_FOREST_BIOME);
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.WARPED_FOREST_BIOME);
+        BCLBiomeRegistry.registerBuiltinIfUnknown(BiomeAPI.BASALT_DELTAS_BIOME);
     }
 
     public static void register() {
