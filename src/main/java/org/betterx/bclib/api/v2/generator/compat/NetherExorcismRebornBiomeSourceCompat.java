@@ -24,8 +24,6 @@ public class NetherExorcismRebornBiomeSourceCompat {
 
         final List<Holder<Biome>> addedBiomes = new ArrayList<>();
         try {
-            Class.forName("net.mcreator.nethersexorcismreborn.init.NethersExorcismRebornModBiomes");
-
             final Climate.ParameterList<Holder<Biome>> parameterList = getTypedParameterList(context);
             final List<Pair<Climate.ParameterPoint, Holder<Biome>>> parameters = new ArrayList<>(parameterList.values());
 
@@ -130,7 +128,6 @@ public class NetherExorcismRebornBiomeSourceCompat {
                     context.ownerName(),
                     ExternalBiomeSourceContext.summarizeBiomeKeys(addedBiomes, 16)
             );
-        } catch (ClassNotFoundException ignored) {
         } catch (ReflectiveOperationException e) {
             BCLib.LOGGER.warning("Unable to apply Nether Exorcism Reborn biome compatibility for {}", context.ownerName(), e);
         }
@@ -143,7 +140,7 @@ public class NetherExorcismRebornBiomeSourceCompat {
             throws ReflectiveOperationException {
         return (Climate.ParameterList<Holder<Biome>>) context.invokeNoArgMethod(
                 context.biomeSource(),
-                "net.minecraft.world.level.biome.Climate$ParameterList",
+                Climate.ParameterList.class,
                 "parameters",
                 "m_274409_",
                 "m_207840_"

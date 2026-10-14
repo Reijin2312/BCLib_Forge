@@ -91,7 +91,7 @@ modrinth {
     }
     def slurper = new groovy.json.JsonSlurper()
     token = modrinth_token
-    projectId = project.archives_base_name
+    projectId = project.findProperty('modrinth_project_id') ?: project.findProperty('modrinth_id') ?: project.archives_base_name
     versionNumber = project.mod_version
     versionType = project.release_channel
     uploadFile = jar
@@ -99,7 +99,7 @@ modrinth {
     loaders = ["forge"]
     changelog = changes
     dependencies {
-        required.project "wunderlib"
+        required.project "wunderlib-forge"
         optional.project "emi"
     }
     debugMode = false
@@ -122,7 +122,7 @@ curseforge {
     }
 
     project {
-        id = '495191'
+        id = project.curseforge_project_id
         changelogType = 'markdown'
         changelog = changes
         releaseType = project.release_channel
@@ -135,7 +135,7 @@ curseforge {
         addGameVersion 'Forge'
         addGameVersion 'Java 17'
         relations {
-            requiredDependency 'wunderlib'
+            requiredDependency 'wunderlib-forge'
             optionalDependency 'emi'
         }
         mainArtifact(jar) {
@@ -157,7 +157,7 @@ task nextVersion() {
     doLast {
         def inputFile = new File('modrinth.json')
         def gameVersions = java.net.URLEncoder.encode(project.modrinth_versions, "UTF-8")
-        new URL("https://api.modrinth.com/v2/project/${project.archives_base_name}/version?&game_versions=${gameVersions}").withInputStream { i -> inputFile.withOutputStream { it << i } }
+        new URL("https://api.modrinth.com/v2/project/${project.findProperty('modrinth_project_id') ?: project.findProperty('modrinth_id') ?: project.archives_base_name}/version?&game_versions=${gameVersions}").withInputStream { i -> inputFile.withOutputStream { it << i } }
 
         def json = new groovy.json.JsonSlurper().parseText(inputFile.text)
         def version = json[0].version_number

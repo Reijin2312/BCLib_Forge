@@ -6,5 +6,16 @@ plugins {
 	id 'org.spongepowered.mixin' version "0.7.+"
 	id 'maven-publish'
 }
+def componentGradleProperties = new Properties()
+def componentGradlePropertiesFile = file('gradle.properties')
+if (!componentGradlePropertiesFile.exists()) {
+    throw new GradleException("Missing component gradle.properties: ${componentGradlePropertiesFile}")
+}
+componentGradlePropertiesFile.withInputStream { stream ->
+    componentGradleProperties.load(stream)
+}
+componentGradleProperties.each { key, value ->
+    project.extensions.extraProperties.set(key.toString(), value)
+}
 
 apply from: "bclib.gradle"
