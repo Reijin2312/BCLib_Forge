@@ -82,10 +82,19 @@ public class ExternalBiomeSourceContext {
 
     public Object invokeNoArgMethod(Object target, String returnClassName, String... methodNames)
             throws ReflectiveOperationException {
-        final Class<?> returnClass = Class.forName(returnClassName);
+        return invokeNoArgMethod(target, Class.forName(returnClassName), methodNames);
+    }
+
+    /**
+     * Fabric production jars use intermediary names for Minecraft classes. Passing a Minecraft
+     * class by name therefore works in a Mojmap development run but fails after remapping. Use
+     * this overload for every Minecraft-owned return type so Loom can remap the class literal.
+     */
+    public Object invokeNoArgMethod(Object target, Class<?> returnClass, String... methodNames)
+            throws ReflectiveOperationException {
         Method method = findNoArgMethod(target.getClass(), returnClass, methodNames);
         if (method == null) {
-            throw new NoSuchMethodException(target.getClass().getName() + " no-arg method returning " + returnClassName);
+            throw new NoSuchMethodException(target.getClass().getName() + " no-arg method returning " + returnClass.getName());
         }
 
         method.setAccessible(true);

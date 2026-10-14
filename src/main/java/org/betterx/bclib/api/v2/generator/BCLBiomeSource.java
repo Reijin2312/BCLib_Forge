@@ -467,8 +467,26 @@ public abstract class BCLBiomeSource extends BiomeSource implements BiomeSourceW
             return;
         }
 
-        Set<Holder<Biome>> combined = new HashSet<>(ownedPossibleBiomes);
-        combined.addAll(externalPossibleBiomes);
+        // Holders for the same biome coming from separately decoded registries are not
+        // necessarily equal. Deduplicate by registry key so the same biome cannot be
+        // added twice to ChunkGenerator.featuresPerStep.
+        Map<ResourceKey<Biome>, Holder<Biome>> keyedBiomes = new LinkedHashMap<>();
+        Set<Holder<Biome>> unkeyedBiomes = new LinkedHashSet<>();
+        for (Holder<Biome> biome : ownedPossibleBiomes) {
+            biome.unwrapKey().ifPresentOrElse(
+                    key -> keyedBiomes.putIfAbsent(key, biome),
+                    () -> unkeyedBiomes.add(biome)
+            );
+        }
+        for (Holder<Biome> biome : externalPossibleBiomes) {
+            biome.unwrapKey().ifPresentOrElse(
+                    key -> keyedBiomes.putIfAbsent(key, biome),
+                    () -> unkeyedBiomes.add(biome)
+            );
+        }
+
+        Set<Holder<Biome>> combined = new LinkedHashSet<>(keyedBiomes.values());
+        combined.addAll(unkeyedBiomes);
         this.dynamicPossibleBiomes = Set.copyOf(combined);
         logCompat(
                 "Combined possible biomes for {}: owned={}, external={}, combined={}, externalNamespaces={}",

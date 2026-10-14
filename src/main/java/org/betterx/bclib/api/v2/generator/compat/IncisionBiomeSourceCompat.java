@@ -24,8 +24,6 @@ public class IncisionBiomeSourceCompat {
 
         final List<Holder<Biome>> addedBiomes = new ArrayList<>();
         try {
-            Class.forName("net.incision.init.IncisionModBiomes");
-
             final Climate.ParameterList<Holder<Biome>> parameterList = getTypedParameterList(context);
             final List<Pair<Climate.ParameterPoint, Holder<Biome>>> parameters = new ArrayList<>(parameterList.values());
 
@@ -70,7 +68,6 @@ public class IncisionBiomeSourceCompat {
                     context.ownerName(),
                     ExternalBiomeSourceContext.summarizeBiomeKeys(addedBiomes, 16)
             );
-        } catch (ClassNotFoundException ignored) {
         } catch (ReflectiveOperationException e) {
             BCLib.LOGGER.warning("Unable to apply Incision biome compatibility for {}", context.ownerName(), e);
         }
@@ -83,7 +80,7 @@ public class IncisionBiomeSourceCompat {
             throws ReflectiveOperationException {
         return (Climate.ParameterList<Holder<Biome>>) context.invokeNoArgMethod(
                 context.biomeSource(),
-                "net.minecraft.world.level.biome.Climate$ParameterList",
+                Climate.ParameterList.class,
                 "parameters",
                 "m_274409_",
                 "m_207840_"
