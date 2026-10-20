@@ -8,6 +8,16 @@ import java.util.List;
 
 public class ExternalBiomeSourceAdapters {
     public static void prepare(ExternalBiomeSourceContext context) {
+        prepareBCLibCompatibility(context);
+
+        // This must remain the final stage. Confluence snapshots possibleBiomes() in a
+        // per-source cache as soon as its handler is visible. Installing it any earlier
+        // can hide biomes appended later by TerraBlender (and consequently removes their
+        // placed features from ChunkGenerator.featuresPerStep).
+        ConfluenceBiomeSourceCompat.finalizeCompatibility(context);
+    }
+
+    private static void prepareBCLibCompatibility(ExternalBiomeSourceContext context) {
         final List<Holder<Biome>> directMultiNoiseBiomes = new ArrayList<>();
         directMultiNoiseBiomes.addAll(NetherExorcismRebornBiomeSourceCompat.prepare(context));
         directMultiNoiseBiomes.addAll(IncisionBiomeSourceCompat.prepare(context));

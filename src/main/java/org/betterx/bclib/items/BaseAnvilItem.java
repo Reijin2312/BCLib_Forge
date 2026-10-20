@@ -6,8 +6,10 @@ import org.betterx.bclib.interfaces.ItemModelProvider;
 
 import net.minecraft.client.renderer.block.model.BlockModel;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -26,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class BaseAnvilItem extends BlockItem implements ItemModelProvider {
     public final static String DESTRUCTION = "destruction";
+    public final static String DURABILITY = "durability";
 
     public BaseAnvilItem(Block block, Properties properties) {
         super(block, properties);
@@ -34,19 +37,9 @@ public class BaseAnvilItem extends BlockItem implements ItemModelProvider {
     @Override
     protected BlockState getPlacementState(BlockPlaceContext blockPlaceContext) {
         BlockState blockState = super.getPlacementState(blockPlaceContext);
-        ItemStack stack = blockPlaceContext.getItemInHand();
-        int destruction = stack.getOrCreateTag().getInt(DESTRUCTION);
         if (blockState != null) {
-            BaseAnvilBlock block = (BaseAnvilBlock) blockState.getBlock();
-            IntegerProperty durabilityProp = block.getDurabilityProp();
-            if (destruction == 0) {
-                blockState = blockState.setValue(durabilityProp, 0).setValue(BaseAnvilBlock.DESTRUCTION, 0);
-            } else {
-                int destructionValue = destruction / block.getMaxDurability();
-                int durabilityValue = destruction - destructionValue * block.getMaxDurability();
-                blockState = blockState.setValue(durabilityProp, durabilityValue)
-                                       .setValue(BaseAnvilBlock.DESTRUCTION, destructionValue);
-            }
+            CompoundTag tag = blockPlaceContext.getItemInHand().getTag();
+            blockState = applyWear(blockState, tag == null ? new CompoundTag() : tag);
         }
         return blockState;
     }
@@ -59,14 +52,37 @@ public class BaseAnvilItem extends BlockItem implements ItemModelProvider {
             List<Component> list,
             TooltipFlag tooltipFlag
     ) {
-        int destruction = itemStack.getOrCreateTag().getInt(DESTRUCTION);
-        if (destruction > 0) {
-            BaseAnvilBlock block = (BaseAnvilBlock) ((BaseAnvilItem) itemStack.getItem()).getBlock();
-            int maxValue = block.getMaxDurability() * 3;
-            float damage = maxValue - destruction;
+        CompoundTag tag = itemStack.getTag();
+        if (tag == null || !tag.contains(DESTRUCTION)) return;
+
+        BaseAnvilBlock block = (BaseAnvilBlock) ((BaseAnvilItem) itemStack.getItem()).getBlock();
+        BlockState state = applyWear(block.defaultBlockState(), tag);
+        int stageLength = block.getMaxDurability() + 1;
+        int used = state.getValue(BaseAnvilBlock.DESTRUCTION) * stageLength
+                + state.getValue(block.getDurabilityProp());
+        if (used > 0) {
+            float damage = used * 100f / (3 * stageLength);
             String percents = String.format(Locale.ROOT, "%.0f%%", damage);
             list.add(Component.translatable("message.bclib.anvil_damage").append(": " + percents));
         }
+    }
+
+    private static BlockState applyWear(BlockState blockState, CompoundTag tag) {
+        BaseAnvilBlock block = (BaseAnvilBlock) blockState.getBlock();
+        IntegerProperty durabilityProp = block.getDurabilityProp();
+        int maxDurability = block.getMaxDurability();
+        int destructionValue;
+        int durabilityValue;
+        if (tag.contains(DURABILITY)) {
+            destructionValue = Mth.clamp(tag.getInt(DESTRUCTION), 0, 2);
+            durabilityValue = Mth.clamp(tag.getInt(DURABILITY), 0, maxDurability);
+        } else {
+            int destruction = tag.getInt(DESTRUCTION);
+            destructionValue = Mth.clamp(destruction / maxDurability, 0, 2);
+            durabilityValue = Mth.clamp(destruction - destructionValue * maxDurability, 0, maxDurability);
+        }
+        return blockState.setValue(durabilityProp, durabilityValue)
+                         .setValue(BaseAnvilBlock.DESTRUCTION, destructionValue);
     }
 
     @Override

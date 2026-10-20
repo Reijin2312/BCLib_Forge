@@ -19,6 +19,7 @@
     "MinecraftMixin",
     "ModelBakeryMixin",
     "ModelManagerMixin",
+    "SheetsMixin",
     "WorldCreationUIStateMixin",
     "boat.BoatRendererMixin"
   ],

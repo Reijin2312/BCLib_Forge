@@ -4,6 +4,7 @@ import org.betterx.bclib.BCLib;
 import org.betterx.bclib.api.v2.generator.BCLBiomeSource;
 import org.betterx.bclib.config.Configs;
 import org.betterx.worlds.together.chunkgenerator.InjectableSurfaceRules;
+import org.betterx.worlds.together.surfaceRules.compat.ConfluenceSurfaceRuleCompat;
 import org.betterx.worlds.together.surfaceRules.compat.ExternalSurfaceRuleCompat;
 import org.betterx.worlds.together.world.event.WorldBootstrap;
 
@@ -16,6 +17,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.dimension.LevelStem;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.SurfaceRules;
 
 import java.lang.reflect.Field;
@@ -107,6 +109,15 @@ public class SurfaceRuleUtil {
             NoiseGeneratorSettings noiseSettings,
             BiomeSource loadedBiomeSource
     ) {
+        injectSurfaceRules(dimensionKey, noiseSettings, loadedBiomeSource, null);
+    }
+
+    public static void injectSurfaceRules(
+            ResourceKey<LevelStem> dimensionKey,
+            NoiseGeneratorSettings noiseSettings,
+            BiomeSource loadedBiomeSource,
+            NoiseBasedChunkGenerator chunkGenerator
+    ) {
         if (((Object) noiseSettings) instanceof SurfaceRuleProvider srp) {
             SurfaceRules.RuleSource originalRules = srp.bclib_getOriginalSurfaceRules();
             List<Biome> biomesWithBCLRules = loadedBiomeSource instanceof BCLBiomeSource bclBiomeSource
@@ -121,6 +132,13 @@ public class SurfaceRuleUtil {
                     additionalRules
             ));
             invalidateTerraBlenderSurfaceRuleCache(noiseSettings);
+            if (chunkGenerator != null) {
+                ConfluenceSurfaceRuleCompat.synchronize(
+                        chunkGenerator,
+                        dimensionKey,
+                        noiseSettings.surfaceRule()
+                );
+            }
         }
     }
 

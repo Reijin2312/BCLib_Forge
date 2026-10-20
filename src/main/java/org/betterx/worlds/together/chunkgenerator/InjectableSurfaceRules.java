@@ -15,7 +15,12 @@ public interface InjectableSurfaceRules<G extends ChunkGenerator> {
      */
     default void injectSurfaceRules(ResourceKey<LevelStem> dimensionKey) {
         if (this instanceof NoiseBasedChunkGenerator nbc) {
-            SurfaceRuleUtil.injectSurfaceRules(dimensionKey, nbc.generatorSettings().value(), nbc.getBiomeSource());
+            SurfaceRuleUtil.injectSurfaceRules(
+                    dimensionKey,
+                    nbc.generatorSettings().value(),
+                    nbc.getBiomeSource(),
+                    nbc
+            );
         }
     }
 }

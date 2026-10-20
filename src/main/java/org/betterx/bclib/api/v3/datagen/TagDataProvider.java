@@ -1,5 +1,6 @@
 package org.betterx.bclib.api.v3.datagen;
 
+import org.betterx.bclib.util.Pair;
 import org.betterx.worlds.together.tag.v3.TagRegistry;
 
 import net.minecraft.core.HolderLookup;
@@ -12,7 +13,10 @@ import net.minecraft.tags.TagKey;
 import net.minecraftforge.common.data.ExistingFileHelper;
 
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import org.jetbrains.annotations.Nullable;
@@ -80,19 +84,48 @@ public class TagDataProvider<T> extends TagsProvider<T> {
         return modIDs == null || modIDs.contains(loc.getNamespace());
     }
 
+    protected boolean isOptional(TagEntry entry) {
+        return entry.verifyIfPresent(id -> false, id -> false);
+    }
+
     @Override
     protected void addTags(HolderLookup.Provider arg) {
+        final Map<TagKey<T>, List<Pair<ResourceLocation, TagEntry>>> elementsByTag = new HashMap<>();
+        final Map<TagKey<T>, List<Pair<TagKey<T>, TagEntry>>> tagsByTag = new HashMap<>();
+
         tagRegistry.forEachEntry((tag, locs, tags) -> {
             if (!forceWrite.contains(tag) && locs.isEmpty() && tags.isEmpty()) return;
-
-            final TagsProvider.TagAppender<T> builder = tag(tag);
-
-            locs.sort(Comparator.comparing(a -> a.first.toString()));
-            tags.sort(Comparator.comparing(a -> a.first.location().toString()));
-
-            locs.forEach(pair -> builder.add(pair.second));
-            tags.forEach(pair -> builder.add(pair.second));
+            elementsByTag.put(tag, locs);
+            tagsByTag.put(tag, tags);
         }, (tag, loc) -> forceWrite.contains(tag) || shouldAdd(tag.location()) || this.shouldAdd(loc));
+
+        final Set<TagKey<T>> written = new HashSet<>(elementsByTag.keySet());
+        tagsByTag.values().forEach(tags -> tags.forEach(pair -> {
+            ResourceLocation id = pair.first.location();
+            if (!isOptional(pair.second)
+                    && !ResourceLocation.DEFAULT_NAMESPACE.equals(id.getNamespace())
+                    && shouldAdd(id)) {
+                written.add(pair.first);
+            }
+        }));
+
+        for (TagKey<T> tag : written) {
+            final TagsProvider.TagAppender<T> builder = tag(tag);
+            elementsByTag.getOrDefault(tag, List.of()).stream()
+                         .sorted(Comparator.comparing(a -> a.first.toString()))
+                         .forEach(pair -> builder.add(pair.second));
+            tagsByTag.getOrDefault(tag, List.of()).stream()
+                     .sorted(Comparator.comparing(a -> a.first.location().toString()))
+                     .forEach(pair -> builder.add(
+                             isOptional(pair.second) || !isKnownTag(pair.first, written)
+                                     ? TagEntry.optionalTag(pair.first.location())
+                                     : pair.second
+                     ));
+        }
+    }
+
+    protected boolean isKnownTag(TagKey<T> tag, Set<TagKey<T>> written) {
+        return written.contains(tag) || ResourceLocation.DEFAULT_NAMESPACE.equals(tag.location().getNamespace());
     }
 
     private static String resolveModId(@Nullable List<String> modIDs) {

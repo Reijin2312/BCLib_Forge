@@ -1,6 +1,5 @@
 package org.betterx.bclib.registry;
 
-import org.betterx.bclib.BCLib;
 import org.betterx.bclib.config.PathConfig;
 import org.betterx.bclib.interfaces.CustomItemProvider;
 
@@ -11,16 +10,18 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 
 public class BlockRegistry extends BaseRegistry<Block> {
+    public BlockRegistry() {
+        super(null);
+    }
+
+    /** @deprecated Block registry entries can no longer be disabled safely. */
+    @Deprecated
     public BlockRegistry(PathConfig config) {
         super(config);
     }
 
     @Override
     public Block register(ResourceLocation id, Block block) {
-        if (!config.getBooleanRoot(id.getNamespace(), true)) {
-            BCLib.LOGGER.warning("Block " + id + " disabled");
-            return block;
-        }
         RegistryBootstrap.queueBlock(id, block);
 
         BlockItem item = null;
@@ -44,9 +45,6 @@ public class BlockRegistry extends BaseRegistry<Block> {
     }
 
     public Block registerBlockOnly(ResourceLocation id, Block block) {
-        if (!config.getBooleanRoot(id.getNamespace(), true)) {
-            return block;
-        }
         getModBlocks(id.getNamespace()).add(block);
         RegistryBootstrap.queueBlock(id, block);
         return block;

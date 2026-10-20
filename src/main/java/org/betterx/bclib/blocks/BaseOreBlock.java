@@ -10,7 +10,6 @@ import org.betterx.bclib.interfaces.TagProvider;
 import org.betterx.bclib.util.LootUtil;
 import org.betterx.bclib.util.MHelper;
 import org.betterx.worlds.together.tag.v3.MineableTags;
-
 import net.minecraft.client.renderer.block.model.BlockModel;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.core.registries.BuiltInRegistries;

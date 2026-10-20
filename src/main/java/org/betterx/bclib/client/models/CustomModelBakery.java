@@ -66,8 +66,13 @@ public class CustomModelBakery {
                                        if (resourceManager.getResource(storageID).isEmpty()) {
                                            addItemModel(blockID, (ItemModelProvider) block);
                                        }
-                                   } catch (RuntimeException ex) {
-                                       BCLib.LOGGER.error("Failed to build runtime block model for {}", blockID, ex);
+                                   } catch (RuntimeException | LinkageError ex) {
+                                       BCLib.LOGGER.warning(
+                                               "Skipping custom models for block {} ({}): {}",
+                                               blockID,
+                                               block.getClass().getName(),
+                                               ex.toString()
+                                       );
                                    }
                                });
 

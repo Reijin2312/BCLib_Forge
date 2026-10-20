@@ -265,13 +265,17 @@ public class SpawnRuleBuilder<M extends Mob> {
     public SpawnRuleBuilder maxNearby(EntityType<?> selectorType, int count, int side) {
         entryInstance = getFromCache("max_nearby_" + selectorType.getDescriptionId() + "_" + count + "_" + side, () -> {
             return new SpawnRuleEntry(3, (type, world, spawnReason, pos, random) -> {
-                final AABB box = new AABB(pos).inflate(side, world.getHeight(), side);
-                final List<?> list = world.getEntitiesOfClass(
-                        Entity.class,
-                        box,
-                        entity -> entity.getType() == selectorType
-                );
-                return list.size() < count;
+                try {
+                    final AABB box = new AABB(pos).inflate(side, world.getHeight(), side);
+                    final List<?> list = world.getEntitiesOfClass(
+                            Entity.class,
+                            box,
+                            entity -> entity.getType() == selectorType
+                    );
+                    return list.size() < count;
+                } catch (Exception e) {
+                    return true;
+                }
             }, "Max Nearby " + count + "/" + side);
         });
         rules.add(entryInstance);

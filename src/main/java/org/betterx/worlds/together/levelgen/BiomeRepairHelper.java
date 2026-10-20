@@ -90,7 +90,11 @@ class BiomeRepairHelper {
                     );
                     didRepair = true;
                 } else if (loadedChunkGenerator.getBiomeSource() instanceof BiomeSourceWithConfig lodedSource) {
-                    if (referenceGenerator.getBiomeSource() instanceof BiomeSourceWithConfig refSource) {
+                    if (referenceGenerator.getBiomeSource() instanceof BiomeSourceWithConfig refSource
+                            && !BCLChunkGenerator.keepsStoredBiomeSourceSettings(
+                            referenceGenerator.getBiomeSource(),
+                            loadedChunkGenerator.getBiomeSource()
+                    )) {
                         if (!refSource.getTogetherConfig().sameConfig(lodedSource.getTogetherConfig())) {
                             lodedSource.setTogetherConfig(refSource.getTogetherConfig());
                         }

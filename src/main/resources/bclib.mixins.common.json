@@ -15,7 +15,7 @@
     "RegistryDataLoaderMixin", "ServerLevelMixin", "ShovelItemAccessor", "SurfaceRulesContextAccessor",
     "V2551Mixin", "V2832Mixin",
     "WorldGenRegionMixin", "boat.BoatItemMixin", "boat.BoatMixin", "boat.ChestBoatMixin", "elytra.LivingEntityMixin",
-    "shears.BeehiveBlockMixin", "shears.DiggingEnchantmentMixin", "shears.ItemPredicateBuilderMixin",
+    "shears.BeehiveBlockMixin", "shears.DiggingEnchantmentMixin", "shears.ItemPredicateAccessor", "shears.MatchToolMixin",
     "shears.MushroomCowMixin", "shears.PumpkinBlockMixin", "shears.SheepMixin", "shears.SnowGolemMixin",
     "shears.TripWireBlockMixin", "signs.BlockEntityTypeMixin"
   ],

@@ -3,6 +3,8 @@ package org.betterx.bclib.api.v2.generator;
 import org.betterx.bclib.BCLib;
 import org.betterx.bclib.api.v2.generator.compat.BlueprintEndBiomeCompat;
 import org.betterx.bclib.api.v2.generator.compat.TerraBlenderNoiseSettingsCompat;
+import org.betterx.bclib.api.v2.generator.config.BCLEndBiomeSourceConfig;
+import org.betterx.bclib.api.v2.generator.config.BCLNetherBiomeSourceConfig;
 import org.betterx.bclib.api.v2.levelgen.LevelGenUtil;
 import org.betterx.bclib.config.Configs;
 import org.betterx.bclib.interfaces.NoiseGeneratorSettingsProvider;
@@ -292,48 +294,45 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
         );
 
         ChunkGenerator referenceGenerator = this;
+        final BiomeSource loadedBiomeSource = loadedChunkGenerator.getBiomeSource();
         final BiomeSource bs;
-        if (referenceGenerator.getBiomeSource() instanceof MergeableBiomeSource mbs) {
-            final BiomeSource loadedBiomeSource = loadedChunkGenerator.getBiomeSource();
-            final boolean loadedBlueprintWrapsReference = BlueprintBiomeSourceCompat.wraps(
+        if (keepsStoredBiomeSourceSettings(referenceGenerator.getBiomeSource(), loadedBiomeSource)
+                && loadedBiomeSource instanceof MergeableBiomeSource loadedMergeable) {
+            bs = loadedMergeable.mergeWithBiomeSource(loadedBiomeSource);
+        } else if (referenceGenerator.getBiomeSource() instanceof MergeableBiomeSource mbs) {
+            boolean loadedBlueprintWrapsReference = BlueprintBiomeSourceCompat.wraps(
                     loadedBiomeSource,
                     referenceGenerator.getBiomeSource()
             );
             bs = loadedBlueprintWrapsReference
                     ? referenceGenerator.getBiomeSource()
                     : mbs.mergeWithBiomeSource(loadedBiomeSource);
-            if (loadedBlueprintWrapsReference) {
-                logCompat(
-                        "Enforce keeping Blueprint wrapper outside BCL source for {}: loadedBiomeSource={}, referenceBiomeSource={}",
-                        dimensionKey.location(),
-                        describeObject(loadedBiomeSource),
-                        describeObject(referenceGenerator.getBiomeSource())
-                );
-            } else if (mbs instanceof BCLBiomeSource bclBiomeSource && !(loadedBiomeSource instanceof BCLBiomeSource)) {
-                logCompat(
-                        "Enforce applying loaded external context for {}: loadedGenerator={}, loadedBiomeSource={}",
-                        dimensionKey.location(),
-                        describeObject(loadedChunkGenerator),
-                        describeObject(loadedBiomeSource)
-                );
-                Holder<DimensionType> dimensionType = access
-                        .registryOrThrow(Registries.DIMENSION_TYPE)
-                        .getHolderOrThrow(dimensionTypeKey);
-                bclBiomeSource.setExternalBiomeSourceContext(
-                        access,
-                        dimensionType,
-                        dimensionKey,
-                        loadedChunkGenerator
-                );
-            } else if (loadedBiomeSource instanceof BCLBiomeSource) {
-                logCompat(
-                        "Enforce preserving existing external context for {} because loaded biome source is already BCL: loadedBiomeSource={}",
-                        dimensionKey.location(),
-                        describeObject(loadedBiomeSource)
-                );
-            }
         } else {
             bs = referenceGenerator.getBiomeSource();
+        }
+
+        if (bs instanceof BCLBiomeSource bclBiomeSource && !(loadedBiomeSource instanceof BCLBiomeSource)) {
+            logCompat(
+                    "Enforce applying loaded external context for {}: loadedGenerator={}, loadedBiomeSource={}",
+                    dimensionKey.location(),
+                    describeObject(loadedChunkGenerator),
+                    describeObject(loadedBiomeSource)
+            );
+            Holder<DimensionType> dimensionType = access
+                    .registryOrThrow(Registries.DIMENSION_TYPE)
+                    .getHolderOrThrow(dimensionTypeKey);
+            bclBiomeSource.setExternalBiomeSourceContext(
+                    access,
+                    dimensionType,
+                    dimensionKey,
+                    loadedChunkGenerator
+            );
+        } else if (loadedBiomeSource instanceof BCLBiomeSource) {
+            logCompat(
+                    "Enforce preserving existing external context for {} because loaded biome source is already BCL: loadedBiomeSource={}",
+                    dimensionKey.location(),
+                    describeObject(loadedBiomeSource)
+            );
         }
 
         if (loadedChunkGenerator instanceof NoiseGeneratorSettingsProvider noiseProvider) {
@@ -382,6 +381,17 @@ public class BCLChunkGenerator extends NoiseBasedChunkGenerator implements Resto
             return "null";
         }
         return object.getClass().getName() + "@" + Integer.toHexString(System.identityHashCode(object));
+    }
+
+    public static boolean keepsStoredBiomeSourceSettings(BiomeSource reference, BiomeSource loaded) {
+        if (reference == null || loaded == null || reference.getClass() != loaded.getClass()) return false;
+        if (loaded instanceof BCLibEndBiomeSource end) {
+            return !BCLEndBiomeSourceConfig.DEFAULT.sameConfig(end.getTogetherConfig());
+        }
+        if (loaded instanceof BCLibNetherBiomeSource nether) {
+            return !BCLNetherBiomeSourceConfig.DEFAULT.sameConfig(nether.getTogetherConfig());
+        }
+        return false;
     }
 
 

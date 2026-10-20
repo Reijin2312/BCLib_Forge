@@ -85,12 +85,13 @@ public abstract class BCLBiomeSource extends BiomeSource implements BiomeSourceW
     @Override
     protected Stream<Holder<Biome>> collectPossibleBiomes() {
         reloadBiomes();
-        return dynamicPossibleBiomes.stream();
+        return possibleBiomes().stream();
     }
 
     @Override
     public Set<Holder<Biome>> possibleBiomes() {
-        return dynamicPossibleBiomes;
+        return org.betterx.bclib.api.v2.generator.compat.ConfluenceBiomeSourceCompat
+                .appendEndBiomes(this, dynamicPossibleBiomes);
     }
 
     public Set<Holder<Biome>> ownedPossibleBiomes() {
@@ -160,20 +161,25 @@ public abstract class BCLBiomeSource extends BiomeSource implements BiomeSourceW
             int biomeZ,
             Climate.Sampler sampler
     ) {
-        if (externalBiomeSource == null || externalBiomeSource == this) {
-            return biome;
-        }
-
-        try {
-            Holder<Biome> externalBiome = externalBiomeSource.getNoiseBiome(biomeX, biomeY, biomeZ, sampler);
-            if (isRealExternalBiome(externalBiome)) {
-                return externalBiome;
+        Holder<Biome> selectedBiome = biome;
+        if (externalBiomeSource != null && externalBiomeSource != this) {
+            try {
+                Holder<Biome> externalBiome = externalBiomeSource.getNoiseBiome(biomeX, biomeY, biomeZ, sampler);
+                if (isRealExternalBiome(externalBiome)) {
+                    selectedBiome = externalBiome;
+                }
+            } catch (Throwable ignored) {
+                // External biome sources are optional compatibility inputs. Keep BCL placement if one fails.
             }
-        } catch (Throwable ignored) {
-            // External biome sources are optional compatibility inputs. Keep BCL placement if one fails.
         }
-
-        return biome;
+        return org.betterx.bclib.api.v2.generator.compat.ConfluenceBiomeSourceCompat.resolveEndBiome(
+                this,
+                selectedBiome,
+                biomeX,
+                biomeY,
+                biomeZ,
+                sampler
+        );
     }
 
     protected boolean isRealExternalBiome(Holder<Biome> biomeHolder) {
@@ -183,6 +189,9 @@ public abstract class BCLBiomeSource extends BiomeSource implements BiomeSourceW
         }
 
         ResourceLocation id = key.location();
+        if (Configs.BIOMES_CONFIG.isExcluded(id)) {
+            return false;
+        }
         String namespace = id.getNamespace();
         String path = id.getPath();
 
@@ -230,7 +239,7 @@ public abstract class BCLBiomeSource extends BiomeSource implements BiomeSourceW
                 .toList();
 
         for (Map.Entry<ResourceKey<Biome>, Biome> biomeEntry : sortedList) {
-            if (excludeList.contains(biomeEntry.getKey().location())) continue;
+            if (excludeList.contains(biomeEntry.getKey().location().toString())) continue;
 
             BiomeAPI.BiomeType type = BiomeAPI.BiomeType.NONE;
             BiomeAPI.BiomeType explicitlyIncludedType = getExplicitIncludedBiomeType(includeMap, biomeEntry.getKey());
