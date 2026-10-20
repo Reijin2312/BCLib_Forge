@@ -183,6 +183,9 @@ public abstract class BCLBiomeSource extends BiomeSource implements BiomeSourceW
         }
 
         ResourceLocation id = key.location();
+        if (Configs.BIOMES_CONFIG.isExcluded(id)) {
+            return false;
+        }
         String namespace = id.getNamespace();
         String path = id.getPath();
 
@@ -230,7 +233,7 @@ public abstract class BCLBiomeSource extends BiomeSource implements BiomeSourceW
                 .toList();
 
         for (Map.Entry<ResourceKey<Biome>, Biome> biomeEntry : sortedList) {
-            if (excludeList.contains(biomeEntry.getKey().location())) continue;
+            if (excludeList.contains(biomeEntry.getKey().location().toString())) continue;
 
             BiomeAPI.BiomeType type = BiomeAPI.BiomeType.NONE;
             BiomeAPI.BiomeType explicitlyIncludedType = getExplicitIncludedBiomeType(includeMap, biomeEntry.getKey());

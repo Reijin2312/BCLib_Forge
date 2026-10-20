@@ -17,6 +17,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.storage.loot.LootParams;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -70,6 +73,7 @@ public class BaseBlock extends Block implements BlockModelProvider, DropSelfLoot
      * This implementation will load the Block-Model and return it as the Item-Model
      */
     @Override
+    @Environment(EnvType.CLIENT)
     public BlockModel getItemModel(ResourceLocation blockId) {
         return getBlockModel(blockId, defaultBlockState());
     }

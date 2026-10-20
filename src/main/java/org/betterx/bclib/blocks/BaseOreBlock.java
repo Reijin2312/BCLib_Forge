@@ -9,8 +9,7 @@ import org.betterx.bclib.interfaces.BlockModelProvider;
 import org.betterx.bclib.interfaces.TagProvider;
 import org.betterx.bclib.util.LootUtil;
 import org.betterx.bclib.util.MHelper;
-import org.betterx.worlds.together.tag.v3.MineableTags;
-
+import net.fabricmc.fabric.api.mininglevel.v1.MiningLevelManager;
 import net.minecraft.client.renderer.block.model.BlockModel;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -39,6 +38,9 @@ import net.minecraft.world.level.storage.loot.functions.ApplyBonusCount;
 import net.minecraft.world.level.storage.loot.functions.SetItemCountFunction;
 import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
 import net.minecraft.world.level.storage.loot.providers.number.UniformGenerator;
+
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
 
 import java.util.Collections;
 import java.util.List;
@@ -233,15 +235,13 @@ public class BaseOreBlock extends DropExperienceBlock implements BlockModelProvi
     }
 
     @Override
+    @Environment(EnvType.CLIENT)
     public BlockModel getItemModel(ResourceLocation resourceLocation) {
         return getBlockModel(resourceLocation, defaultBlockState());
     }
 
     @Override
     public void addTags(List<TagKey<Block>> blockTags, List<TagKey<Item>> itemTags) {
-        TagKey<Block> toolTag = MineableTags.getRequiredToolTag(this.miningLevel);
-        if (toolTag != null) {
-            blockTags.add(toolTag);
-        }
+        blockTags.add(MiningLevelManager.getBlockTag(this.miningLevel));
     }
 }
